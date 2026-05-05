@@ -171,6 +171,9 @@ class DigitalTwin:
             )
 
         # W2: pressure underflow — adaptive per-node baseline (not fixed threshold)
+        # Baseline excludes the current reading (hist[-(W+1):-1]) so the anomaly
+        # being evaluated is never part of its own reference distribution.
+        # Secondary ramp check catches low-and-slow attacks that evade sigma.
         low_pressure = []
         for nid, nd in water_nodes.items():
             if nid.startswith("pump_"):
@@ -179,17 +182,25 @@ class DigitalTwin:
             if not isinstance(p, (int, float)):
                 continue
             hist_vals = [v for _, v in self._history_for(nid)]
-            if len(hist_vals) < config.W2_WARMUP_TICKS:
+            # Need WARMUP_TICKS+1: one extra so baseline excludes the current reading
+            if len(hist_vals) < config.W2_WARMUP_TICKS + 1:
                 continue
-            baseline = hist_vals[-config.W2_BASELINE_WINDOW:]
+            baseline = hist_vals[-(config.W2_BASELINE_WINDOW + 1):-1]
             mean = sum(baseline) / len(baseline)
-            std = self._rolling_std(nid, config.W2_BASELINE_WINDOW) or 0.0
+            variance = sum((v - mean) ** 2 for v in baseline) / len(baseline)
+            std = variance ** 0.5
+            flagged = False
             if std < 0.5:
                 if mean - p >= config.W2_MIN_DROP_M:
-                    low_pressure.append(nid)
+                    flagged = True
             else:
                 if p < mean - config.W2_SIGMA_THRESHOLD * std:
-                    low_pressure.append(nid)
+                    flagged = True
+            # Secondary: oldest value in window vs current — catches ramp attacks
+            if not flagged and baseline[0] - p >= config.W2_MIN_DROP_M:
+                flagged = True
+            if flagged:
+                low_pressure.append(nid)
         if low_pressure:
             self._violation(
                 "W2", "Pressure underflow: drop below per-node rolling baseline",
