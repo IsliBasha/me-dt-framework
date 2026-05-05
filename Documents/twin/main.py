@@ -95,6 +95,11 @@ def _should_fire_mode_c(
     return True
 
 
+def _on_shutdown(tick: int):
+    """Export the TTD comparison report on server stop. Called from main() finally block."""
+    return metrics.export_report(tick)
+
+
 # ---------------------------------------------------------------------------
 # WebSocket endpoint
 # ---------------------------------------------------------------------------
@@ -390,10 +395,13 @@ async def main():
 
     os.makedirs("reports", exist_ok=True)
 
-    await asyncio.gather(
-        simulation_loop(),
-        start_uvicorn(),
-    )
+    try:
+        await asyncio.gather(
+            simulation_loop(),
+            start_uvicorn(),
+        )
+    finally:
+        _on_shutdown(_tick)
 
 
 if __name__ == "__main__":
