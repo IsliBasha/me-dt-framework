@@ -22,6 +22,10 @@ ATTACK_DURATION_TICKS       = 8
 CHLORINE_MAX                = 4.0
 PUMP_PRESSURE_DELTA_THRESHOLD = 10.0   # meters — swing over check window triggers W1
 PUMP_PRESSURE_CHECK_WINDOW    = 3      # ticks to look back for W1 transient
+W2_WARMUP_TICKS               = 30     # ticks of history required before W2 can fire
+W2_BASELINE_WINDOW            = 30     # ticks used to compute per-node mean/std
+W2_SIGMA_THRESHOLD            = 2.5    # std deviations below rolling mean triggers W2
+W2_MIN_DROP_M                 = 3.0    # absolute drop (m) used when node std < 0.5
 LOG_LEVEL                   = "INFO"
 
 ANTHROPIC_API_KEY           = os.environ.get("ANTHROPIC_API_KEY", "")

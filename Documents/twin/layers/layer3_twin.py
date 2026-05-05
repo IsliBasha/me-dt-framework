@@ -64,6 +64,14 @@ class DigitalTwin:
         vals = [v for _, v in hist][-n:]
         return sum(vals) / len(vals) if vals else None
 
+    def _rolling_std(self, node_id: str, n: int = 30) -> Optional[float]:
+        hist = self._history_for(node_id)
+        vals = [v for _, v in hist][-n:]
+        if len(vals) < 2:
+            return None
+        mean = sum(vals) / len(vals)
+        return (sum((v - mean) ** 2 for v in vals) / len(vals)) ** 0.5
+
     def update(self, clean_stream: List[NodeReading], tick: int):
         self.tick = tick
         self.active_violations = []
@@ -162,17 +170,29 @@ class DigitalTwin:
                 pump_toggles, "water", "HIGH", tick,
             )
 
-        # W2: pressure underflow
+        # W2: pressure underflow — adaptive per-node baseline (not fixed threshold)
         low_pressure = []
         for nid, nd in water_nodes.items():
             if nid.startswith("pump_"):
                 continue
             p = nd.get("value", 100.0)
-            if isinstance(p, (int, float)) and p < 5.0:
-                low_pressure.append(nid)
+            if not isinstance(p, (int, float)):
+                continue
+            hist_vals = [v for _, v in self._history_for(nid)]
+            if len(hist_vals) < config.W2_WARMUP_TICKS:
+                continue
+            baseline = hist_vals[-config.W2_BASELINE_WINDOW:]
+            mean = sum(baseline) / len(baseline)
+            std = self._rolling_std(nid, config.W2_BASELINE_WINDOW) or 0.0
+            if std < 0.5:
+                if mean - p >= config.W2_MIN_DROP_M:
+                    low_pressure.append(nid)
+            else:
+                if p < mean - config.W2_SIGMA_THRESHOLD * std:
+                    low_pressure.append(nid)
         if low_pressure:
             self._violation(
-                "W2", "Pressure underflow below 5m threshold",
+                "W2", "Pressure underflow: drop below per-node rolling baseline",
                 low_pressure, "water", "MEDIUM", tick,
             )
 
