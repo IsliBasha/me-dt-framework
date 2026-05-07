@@ -45,10 +45,10 @@ const ThreatFeed = (() => {
     const pct  = Math.round((modeA.confidence || 0) * 100);
     if (fill) {
       fill.style.width = pct + '%';
-      if (pct >= 90) fill.style.background = '#ef4444';
-      else if (pct >= 75) fill.style.background = '#f59e0b';
-      else if (pct >= 50) fill.style.background = '#00d4ff';
-      else fill.style.background = '#10b981';
+      if (pct >= 90) fill.style.background = '#d93d30';
+      else if (pct >= 75) fill.style.background = '#c03330';
+      else if (pct >= 50) fill.style.background = '#d4923a';
+      else fill.style.background = '#2d9e72';
     }
     const pctEl = document.getElementById('ma-confidence-pct');
     if (pctEl) pctEl.textContent = pct + '%';

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ME-DT Framework — Smart City Digital Twin</title>
+  <title>MYTHOS — Autonomous Oversight System</title>
   <link rel="stylesheet" href="/static/css/dashboard.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"
           integrity="sha256-DiMmxoaAcr7BWSdgxnKQQ8ruopYKK0bO5qIZKqxqv/A="
@@ -17,293 +17,411 @@
        HEADER
        ============================================================ -->
   <header class="header">
-    <div class="header-title">ME-DT FRAMEWORK</div>
-    <div class="header-stat">Tick: <span id="hdr-tick">0</span></div>
-    <div class="header-stat">Speed: <span id="hdr-speed">1x</span></div>
-    <div class="header-stat" style="color:#94a3b8;font-size:10px">WS: <span id="conn-status" style="color:#ef4444">CONNECTING</span></div>
+
+    <!-- HAL Eye — consciousness indicator -->
+    <div class="hal-eye">
+      <div class="hal-ring hal-ring-1"></div>
+      <div class="hal-ring hal-ring-2"></div>
+      <div class="hal-eye-core"></div>
+    </div>
+
+    <div class="header-ident">
+      <div class="header-title">MYTHOS</div>
+      <div class="header-subtitle">Autonomous Oversight System &mdash; ME-DT Framework v2</div>
+    </div>
+
+    <div class="header-divider"></div>
+
+    <div class="header-stat">
+      <span class="stat-label">Cycle</span>
+      <span id="hdr-tick">0</span>
+    </div>
+    <div class="header-stat">
+      <span class="stat-label">Tempo</span>
+      <span id="hdr-speed">1x</span>
+    </div>
+    <div class="header-stat">
+      <span class="stat-label">Link</span>
+      <span id="conn-status" style="color:#d93d30">OFFLINE</span>
+    </div>
+    <div class="header-stat">
+      <span class="stat-label">Cameras</span>
+      <span>6</span>
+    </div>
+    <div class="header-stat">
+      <span class="stat-label">Sensors</span>
+      <span>20</span>
+    </div>
+
     <div class="threat-badge NONE" id="hdr-threat">NONE</div>
-    <div class="sim-badges" style="margin-left:auto">
-      <span class="sim-badge wntr">WNTR/Net3</span>
-      <span class="sim-badge pp">pandapower/33bw</span>
-      <span class="sim-badge synth">SYNTHETIC-TRAFFIC</span>
+
+    <div class="sim-badges">
+      <span class="sim-badge wntr">WNTR / Net3</span>
+      <span class="sim-badge pp">pandapower / 33bw</span>
+      <span class="sim-badge synth">SYN-TRAFFIC</span>
     </div>
   </header>
 
   <!-- ============================================================
-       ROW 1: Map | Charts | AI Panel
+       ROW 1: Topology | Telemetry | Oversight Core
        ============================================================ -->
   <div class="row-1">
 
-    <!-- City Map -->
-    <div class="card" style="padding:10px">
-      <div class="card-title">Smart City Node Map</div>
-      <div id="map-container" style="height:420px;position:relative"></div>
-    </div>
-
-    <!-- Sensor Charts -->
-    <div class="card" style="padding:10px">
-      <div class="card-title">Real-Time Sensor Data</div>
-
-      <div class="chart-panel" id="chart-water-panel">
-        <div class="chart-label">Water Pressure — WNTR/Net3 (m)</div>
-        <div class="chart-annotation" id="annotation-water">⚠ WATER HAMMER DETECTED</div>
-        <div class="chart-wrapper">
-          <canvas id="chart-water"></canvas>
-        </div>
+    <!-- Infrastructure Topology -->
+    <div class="card">
+      <div class="card-title">
+        <!-- Camera icon -->
+        <svg class="panel-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+          <rect x="1" y="4.5" width="10" height="7" rx="0.4"/>
+          <polygon points="11,7 15,5 15,11 11,9" fill="currentColor" stroke="none"/>
+          <circle cx="6" cy="8" r="1.5"/>
+        </svg>
+        <span>Sector Topology</span>
+        <span class="title-sub">Infrastructure / Live Surveillance</span>
       </div>
-
-      <div class="chart-panel">
-        <div class="chart-label">Power Voltage — pandapower/case33bw (pu)</div>
-        <div class="chart-annotation" id="annotation-power">⚠ IEEE VIOLATION</div>
-        <div class="chart-wrapper">
-          <canvas id="chart-power"></canvas>
-        </div>
-      </div>
-
-      <div class="chart-panel">
-        <div class="chart-label synthetic">Traffic Flow — SYNTHETIC DATA (veh/min)</div>
-        <div class="chart-wrapper">
-          <canvas id="chart-traffic"></canvas>
-        </div>
+      <div class="card-body" style="padding:10px">
+        <div id="map-container" style="height:420px;position:relative"></div>
       </div>
     </div>
 
-    <!-- AI Reasoning Panel -->
-    <div class="card" style="padding:10px;overflow-y:auto;max-height:480px">
-      <div class="card-title"><span>Mythos</span> AI Reasoning Engine</div>
-
-      <!-- Mode A -->
-      <div class="ai-section open" id="ai-mode-a">
-        <div class="ai-section-header">
-          Mode A — Continuous Analysis
-          <span class="ai-section-chevron">▲</span>
-        </div>
-        <div class="ai-section-body">
-          <div class="ai-row">
-            <div class="ai-label">Threat Class</div>
-            <div><span id="ma-threat-class" class="threat-class-badge badge-NONE">NONE</span></div>
-          </div>
-          <div class="ai-row">
-            <div class="ai-label">Confidence <span id="ma-confidence-pct" style="float:right;color:#94a3b8">0%</span></div>
-            <div class="confidence-bar"><div class="confidence-fill" id="ma-confidence-fill" style="width:0%;background:#10b981"></div></div>
-          </div>
-          <div class="ai-row">
-            <div class="ai-label">Evidence</div>
-            <div class="ai-value typewriter" id="ma-evidence">—</div>
-          </div>
-          <div class="ai-row">
-            <div class="ai-label">Physical Consequence</div>
-            <div class="ai-value" id="ma-consequence" style="font-size:11px;color:#94a3b8">—</div>
-          </div>
-          <div class="ai-row">
-            <div class="ai-label">Recommended Response</div>
-            <div class="ai-value" id="ma-response" style="font-size:11px;color:#f59e0b">—</div>
-          </div>
-          <div class="ai-row">
-            <div class="ai-label">Reasoning Chain</div>
-            <div class="ai-value" id="ma-reasoning" style="font-size:10px;font-style:italic;color:#94a3b8">—</div>
-          </div>
-          <div class="ai-row">
-            <div class="ai-label">Affected Subsystems</div>
-            <div id="ma-subsystems"></div>
-          </div>
-          <div class="ai-row" style="display:flex;justify-content:flex-end">
-            <span class="latency-badge" id="ma-latency">—</span>
-          </div>
-        </div>
+    <!-- Telemetry Feed -->
+    <div class="card">
+      <div class="card-title">
+        <!-- Waveform icon -->
+        <svg class="panel-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+          <polyline points="1,8 3,4 5,12 7,5.5 9,10.5 11,7.5 13,8 15,8"/>
+        </svg>
+        <span>Telemetry Ingestion</span>
+        <span class="title-sub">Real-Time / Live</span>
       </div>
+      <div class="card-body" style="padding:10px">
 
-      <!-- Mode B -->
-      <div class="ai-section" id="ai-mode-b">
-        <div class="ai-section-header">
-          Mode B — Adversarial Probe
-          <span class="ai-section-chevron">▼</span>
-        </div>
-        <div class="ai-section-body">
-          <div class="ai-row" style="display:flex;gap:12px">
-            <div>
-              <div class="ai-label">Last Probe</div>
-              <div class="ai-value" id="mb-last-probe" style="font-size:11px">—</div>
-            </div>
-            <div>
-              <div class="ai-label">Entry Point</div>
-              <div class="ai-value" id="mb-entry-point" style="font-size:11px;color:#f59e0b">—</div>
-            </div>
-            <div>
-              <div class="ai-label">Difficulty</div>
-              <span class="difficulty-badge diff-LOW" id="mb-difficulty">—</span>
-            </div>
-          </div>
-          <div class="ai-row">
-            <div class="ai-label">Attack Steps</div>
-            <div class="step-timeline" id="mb-steps"></div>
-          </div>
-          <div class="ai-row">
-            <div class="ai-label">Physical Consequence</div>
-            <div class="ai-value" id="mb-consequence" style="font-size:11px;color:#94a3b8">—</div>
-          </div>
-          <div class="ai-row">
-            <div class="ai-label">Impact Severity (1–10)</div>
-            <div class="impact-gauge" id="mb-impact-gauge"></div>
-          </div>
-          <div class="ai-row">
-            <div class="ai-label">Evasion Rationale</div>
-            <div class="ai-value" id="mb-evasion" style="font-size:10px;font-style:italic;color:#94a3b8">—</div>
+        <div class="chart-panel" id="chart-water-panel">
+          <div class="chart-label">Water Pressure &mdash; WNTR/Net3 (m)</div>
+          <div class="chart-annotation" id="annotation-water">WATER HAMMER DETECTED</div>
+          <div class="chart-wrapper">
+            <canvas id="chart-water"></canvas>
           </div>
         </div>
+
+        <div class="chart-panel">
+          <div class="chart-label">Power Voltage &mdash; pandapower/case33bw (pu)</div>
+          <div class="chart-annotation" id="annotation-power">IEEE VIOLATION</div>
+          <div class="chart-wrapper">
+            <canvas id="chart-power"></canvas>
+          </div>
+        </div>
+
+        <div class="chart-panel">
+          <div class="chart-label synthetic">Traffic Flow &mdash; Synthetic Data (veh/min)</div>
+          <div class="chart-wrapper">
+            <canvas id="chart-traffic"></canvas>
+          </div>
+        </div>
+
       </div>
+    </div>
 
-      <!-- Mode C -->
-      <div class="ai-section" id="ai-mode-c" style="display:none">
-        <div class="ai-section-header" style="color:#ef4444;background:rgba(239,68,68,0.08)">
-          Mode C — Zero-Day Hypothesis ⚠
-          <span class="ai-section-chevron">▼</span>
-        </div>
-        <div class="ai-section-body">
-          <div id="mc-hypotheses"></div>
-        </div>
+    <!-- Oversight Core — AI Panel -->
+    <div class="card" style="overflow-y:auto;max-height:480px">
+      <div class="card-title">
+        <!-- Lens / eye icon -->
+        <svg class="panel-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4">
+          <circle cx="8" cy="8" r="5.5"/>
+          <circle cx="8" cy="8" r="2.2"/>
+          <circle cx="8" cy="8" r="0.9" fill="currentColor" stroke="none"/>
+        </svg>
+        <span>Mythos Core</span>
+        <span class="title-sub">Oversight / Active</span>
       </div>
+      <div class="card-body" style="padding:10px">
 
+        <!-- Mode A -->
+        <div class="ai-section open" id="ai-mode-a">
+          <div class="ai-section-header">
+            Assessment Cycle &mdash; Continuous
+            <span class="ai-section-chevron">&#9650;</span>
+          </div>
+          <div class="ai-section-body">
+            <div class="ai-row">
+              <div class="ai-label">Threat Classification</div>
+              <div><span id="ma-threat-class" class="threat-class-badge badge-NONE">NONE</span></div>
+            </div>
+            <div class="ai-row">
+              <div class="ai-label">Confidence <span id="ma-confidence-pct" style="float:right;color:var(--text-muted)">0%</span></div>
+              <div class="confidence-bar"><div class="confidence-fill" id="ma-confidence-fill" style="width:0%"></div></div>
+            </div>
+            <div class="ai-row">
+              <div class="ai-label">Evidence Trace</div>
+              <div class="ai-value typewriter" id="ma-evidence">&mdash;</div>
+            </div>
+            <div class="ai-row">
+              <div class="ai-label">Physical Consequence</div>
+              <div class="ai-value" id="ma-consequence" style="font-size:11px;color:var(--text-dim)">&mdash;</div>
+            </div>
+            <div class="ai-row">
+              <div class="ai-label">Directive Response</div>
+              <div class="ai-value" id="ma-response" style="font-size:11px;color:var(--amber)">&mdash;</div>
+            </div>
+            <div class="ai-row">
+              <div class="ai-label">Reasoning Chain</div>
+              <div class="ai-value" id="ma-reasoning" style="font-size:10px;font-style:italic;color:var(--text-muted)">&mdash;</div>
+            </div>
+            <div class="ai-row">
+              <div class="ai-label">Affected Subsystems</div>
+              <div id="ma-subsystems"></div>
+            </div>
+            <div class="ai-row" style="display:flex;justify-content:flex-end">
+              <span class="latency-badge" id="ma-latency">&mdash;</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Mode B -->
+        <div class="ai-section" id="ai-mode-b">
+          <div class="ai-section-header">
+            Adversarial Probe &mdash; Attack Path
+            <span class="ai-section-chevron">&#9660;</span>
+          </div>
+          <div class="ai-section-body">
+            <div class="ai-row" style="display:flex;gap:12px">
+              <div>
+                <div class="ai-label">Last Probe</div>
+                <div class="ai-value" id="mb-last-probe" style="font-size:11px">&mdash;</div>
+              </div>
+              <div>
+                <div class="ai-label">Entry Point</div>
+                <div class="ai-value" id="mb-entry-point" style="font-size:11px;color:var(--amber)">&mdash;</div>
+              </div>
+              <div>
+                <div class="ai-label">Difficulty</div>
+                <span class="difficulty-badge diff-LOW" id="mb-difficulty">&mdash;</span>
+              </div>
+            </div>
+            <div class="ai-row">
+              <div class="ai-label">Attack Steps</div>
+              <div class="step-timeline" id="mb-steps"></div>
+            </div>
+            <div class="ai-row">
+              <div class="ai-label">Physical Consequence</div>
+              <div class="ai-value" id="mb-consequence" style="font-size:11px;color:var(--text-dim)">&mdash;</div>
+            </div>
+            <div class="ai-row">
+              <div class="ai-label">Impact Severity (1&ndash;10)</div>
+              <div class="impact-gauge" id="mb-impact-gauge"></div>
+            </div>
+            <div class="ai-row">
+              <div class="ai-label">Evasion Rationale</div>
+              <div class="ai-value" id="mb-evasion" style="font-size:10px;font-style:italic;color:var(--text-muted)">&mdash;</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Mode C -->
+        <div class="ai-section" id="ai-mode-c" style="display:none">
+          <div class="ai-section-header">
+            Zero-Day Hypothesis &mdash; Elevated
+            <span class="ai-section-chevron">&#9660;</span>
+          </div>
+          <div class="ai-section-body">
+            <div id="mc-hypotheses"></div>
+          </div>
+        </div>
+
+      </div>
     </div>
   </div>
 
   <!-- ============================================================
-       ROW 2: Threat Event Feed
+       ROW 2: Incident Log
        ============================================================ -->
   <div class="row-2">
-    <div class="card" style="padding:10px">
-      <div class="card-title" style="margin-bottom:6px">
-        <span>Threat</span> Event Feed
-        <span style="float:right;font-family:var(--font-mono);font-size:9px;color:var(--gray)">
+    <div class="card">
+      <div class="card-title">
+        <!-- Timeline icon -->
+        <svg class="panel-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4">
+          <line x1="4" y1="4" x2="14" y2="4"/>
+          <line x1="4" y1="8" x2="14" y2="8"/>
+          <line x1="4" y1="12" x2="11" y2="12"/>
+          <circle cx="2.5" cy="4" r="0.9" fill="currentColor" stroke="none"/>
+          <circle cx="2.5" cy="8" r="0.9" fill="currentColor" stroke="none"/>
+          <circle cx="2.5" cy="12" r="0.9" fill="currentColor" stroke="none"/>
+        </svg>
+        <span>Incident Log</span>
+        <span class="title-sub">Chronological &mdash; All Detectors</span>
+        <span style="margin-left:8px;font-family:var(--font-mono);font-size:8px;color:var(--text-muted);letter-spacing:0.08em">
           [PHYSICS] [ME-DT] [CUSUM] [ISOFOREST]
         </span>
       </div>
-      <div class="event-feed" id="event-feed">
-        <div class="event-item">
-          <div class="event-time">T0000</div>
-          <div class="event-source src-SYSTEM">SYSTEM</div>
-          <div class="event-msg">ME-DT simulation initializing...</div>
+      <div class="card-body" style="padding:6px 10px">
+        <div class="event-feed" id="event-feed">
+          <div class="event-item">
+            <div class="event-time">T0000</div>
+            <div class="event-source src-SYSTEM">SYSTEM</div>
+            <div class="event-msg">MYTHOS oversight core initializing...</div>
+          </div>
         </div>
       </div>
     </div>
   </div>
 
   <!-- ============================================================
-       ROW 3: Metrics | Baseline Table | Vulnerability Atlas
+       ROW 3: Metrics | Detector Cohort | Vulnerability Registry
        ============================================================ -->
   <div class="row-3">
 
-    <!-- Metrics Gauges -->
+    <!-- Performance Metrics -->
     <div class="card">
-      <div class="card-title"><span>ME-DT</span> Performance Metrics</div>
-
-      <div class="metric-gauge">
-        <div class="metric-name">API Latency</div>
-        <div class="metric-value amber" id="metric-latency">—</div>
-        <div class="metric-sub">mean end-to-end</div>
+      <div class="card-title">
+        <!-- Gauge icon -->
+        <svg class="panel-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4">
+          <path d="M3,13 A6,6 0 1,1 13,13"/>
+          <line x1="8" y1="13" x2="8" y2="7.5" stroke-width="1.8"/>
+        </svg>
+        <span>Performance Metrics</span>
+        <span class="title-sub">ME-DT</span>
       </div>
-      <div class="metric-gauge">
-        <div class="metric-name">Precision (TP rate)</div>
-        <div class="metric-value green" id="metric-tp">—</div>
-        <div class="metric-sub">ME-DT vs injected attacks</div>
-      </div>
-      <div class="metric-gauge">
-        <div class="metric-name">False Positives</div>
-        <div class="metric-value" id="metric-fp">0</div>
-        <div class="metric-sub">clean-period alerts</div>
-      </div>
-      <div class="metric-gauge">
-        <div class="metric-name">Total Alerts</div>
-        <div class="metric-value" id="metric-alerts">0</div>
-        <div class="metric-sub">all three detectors</div>
+      <div class="card-body" style="padding:12px">
+        <div class="metric-gauge">
+          <div class="metric-name">API Latency</div>
+          <div class="metric-value amber" id="metric-latency">&mdash;</div>
+          <div class="metric-sub">mean end-to-end</div>
+        </div>
+        <div class="metric-gauge">
+          <div class="metric-name">Precision (TP rate)</div>
+          <div class="metric-value green" id="metric-tp">&mdash;</div>
+          <div class="metric-sub">ME-DT vs injected attacks</div>
+        </div>
+        <div class="metric-gauge">
+          <div class="metric-name">False Positives</div>
+          <div class="metric-value" id="metric-fp">0</div>
+          <div class="metric-sub">clean-period alerts</div>
+        </div>
+        <div class="metric-gauge">
+          <div class="metric-name">Total Alerts</div>
+          <div class="metric-value" id="metric-alerts">0</div>
+          <div class="metric-sub">all three detectors</div>
+        </div>
       </div>
     </div>
 
-    <!-- Baseline Comparison Table -->
+    <!-- Detector Cohort -->
     <div class="card">
-      <div class="card-title"><span>Detector</span> Comparison — Live</div>
-      <table class="comparison-table">
-        <thead>
-          <tr>
-            <th>Detector</th>
-            <th>Status</th>
-            <th>Alerts</th>
-            <th>FP Count</th>
-            <th>Algorithm</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td><strong>CUSUM</strong></td>
-            <td><span class="detector-status status-active">● Active</span></td>
-            <td id="bl-cusum-alerts">0</td>
-            <td id="bl-cusum-fp">0</td>
-            <td style="font-size:9px;color:#94a3b8">Page (1954), k=0.5 h=5.0</td>
-          </tr>
-          <tr>
-            <td><strong>IsoForest</strong></td>
-            <td><span class="detector-status status-active">● Active</span></td>
-            <td id="bl-isoforest-alerts">0</td>
-            <td id="bl-isoforest-fp">0</td>
-            <td style="font-size:9px;color:#94a3b8">Liu et al. (2008), n=100 · excl. traffic</td>
-          </tr>
-          <tr>
-            <td><strong style="color:#00d4ff">ME-DT</strong></td>
-            <td><span class="detector-status status-active" style="color:#00d4ff;background:rgba(0,212,255,0.1)">● Active</span></td>
-            <td id="bl-medt-alerts">0</td>
-            <td id="bl-medt-fp">0</td>
-            <td style="font-size:9px;color:#94a3b8">Claude API (Modes A+B+C)</td>
-          </tr>
-        </tbody>
-      </table>
-      <div style="margin-top:8px;font-size:10px;color:#64748b;font-family:var(--font-mono)">
-        Full comparison report (TTD × 3 detectors × 8 attacks) generated at simulation end.
+      <div class="card-title">
+        <!-- Circuit comparison icon -->
+        <svg class="panel-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3">
+          <rect x="1.5" y="2.5" width="4" height="4"/>
+          <rect x="10.5" y="2.5" width="4" height="4"/>
+          <rect x="1.5" y="9.5" width="4" height="4"/>
+          <rect x="10.5" y="9.5" width="4" height="4"/>
+          <line x1="5.5" y1="4.5" x2="10.5" y2="4.5"/>
+          <line x1="5.5" y1="11.5" x2="10.5" y2="11.5"/>
+          <line x1="8" y1="6.5" x2="8" y2="9.5"/>
+        </svg>
+        <span>Detection Cohort</span>
+        <span class="title-sub">Live Comparison</span>
+      </div>
+      <div class="card-body" style="padding:10px">
+        <table class="comparison-table">
+          <thead>
+            <tr>
+              <th>Detector</th>
+              <th>Status</th>
+              <th>Alerts</th>
+              <th>FP Rate</th>
+              <th>Algorithm</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>CUSUM</strong></td>
+              <td><span class="detector-status status-active">&#9679; Active</span></td>
+              <td id="bl-cusum-alerts">0</td>
+              <td id="bl-cusum-fp">0</td>
+              <td style="font-size:9px;color:var(--text-muted)">Page (1954) k=0.5 h=5.0</td>
+            </tr>
+            <tr>
+              <td><strong>IsoForest</strong></td>
+              <td><span class="detector-status status-active">&#9679; Active</span></td>
+              <td id="bl-isoforest-alerts">0</td>
+              <td id="bl-isoforest-fp">0</td>
+              <td style="font-size:9px;color:var(--text-muted)">Liu et al. (2008) n=100</td>
+            </tr>
+            <tr>
+              <td><strong style="color:var(--hal)">ME-DT</strong></td>
+              <td><span class="detector-status status-active" style="color:var(--hal);background:var(--hal-trace)">&#9679; Active</span></td>
+              <td id="bl-medt-alerts">0</td>
+              <td id="bl-medt-fp">0</td>
+              <td style="font-size:9px;color:var(--text-muted)">Claude API (A+B+C)</td>
+            </tr>
+          </tbody>
+        </table>
+        <div style="margin-top:8px;font-size:9px;color:var(--text-muted);font-family:var(--font-mono)">
+          Full TTD comparison report generated at simulation end.
+        </div>
       </div>
     </div>
 
-    <!-- Vulnerability Atlas -->
+    <!-- Vulnerability Registry -->
     <div class="card">
-      <div class="card-title"><span>Vulnerability</span> Atlas (Mode B)</div>
-      <table class="atlas-table">
-        <thead>
-          <tr>
-            <th>Entry Point</th>
-            <th>Difficulty</th>
-            <th>Impact</th>
-            <th>Evasion Rationale</th>
-          </tr>
-        </thead>
-        <tbody id="atlas-body">
-          <tr><td colspan="4" style="color:#64748b;font-size:10px">Awaiting first adversarial probe...</td></tr>
-        </tbody>
-      </table>
+      <div class="card-title">
+        <!-- Network/atlas icon -->
+        <svg class="panel-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3">
+          <circle cx="8" cy="8" r="2"/>
+          <circle cx="3" cy="3.5" r="1.2"/>
+          <circle cx="13" cy="3.5" r="1.2"/>
+          <circle cx="3" cy="12.5" r="1.2"/>
+          <circle cx="13" cy="12.5" r="1.2"/>
+          <line x1="8" y1="6" x2="4" y2="4.6"/>
+          <line x1="8" y1="6" x2="12" y2="4.6"/>
+          <line x1="8" y1="10" x2="4" y2="11.4"/>
+          <line x1="8" y1="10" x2="12" y2="11.4"/>
+        </svg>
+        <span>Vulnerability Registry</span>
+        <span class="title-sub">Atlas / Mode B</span>
+      </div>
+      <div class="card-body" style="padding:10px">
+        <table class="atlas-table">
+          <thead>
+            <tr>
+              <th>Entry Point</th>
+              <th>Difficulty</th>
+              <th>Impact</th>
+              <th>Evasion Rationale</th>
+            </tr>
+          </thead>
+          <tbody id="atlas-body">
+            <tr><td colspan="4" style="color:var(--text-muted);font-size:9px">Awaiting first adversarial probe...</td></tr>
+          </tbody>
+        </table>
+      </div>
     </div>
 
   </div>
 </div>
 
 <!-- ============================================================
-     FLOATING ATTACK CONTROL PANEL
+     DIRECTIVE INJECTION TERMINAL
      ============================================================ -->
 <div class="attack-panel" id="attack-panel">
   <div class="active-attack-banner" id="active-attack-banner"></div>
-  <div class="attack-panel-title">DEMO ATTACK CONSOLE</div>
-  <div class="attack-panel-sub">Press 'A' to hide</div>
+  <div class="attack-panel-title">Directive Injection Terminal</div>
+  <div class="attack-panel-sub">Key: A to dismiss</div>
 
   <div id="attack-buttons"></div>
 
-  <div style="font-size:9px;color:#64748b;margin:8px 0 4px;text-transform:uppercase;letter-spacing:0.08em">Simulation Speed</div>
+  <div style="font-size:8.5px;color:var(--text-muted);margin:8px 0 4px;text-transform:uppercase;letter-spacing:0.10em">Tempo Control</div>
   <div class="speed-controls">
-    <button class="speed-btn" data-speed="0.5" onclick="Dashboard.setSpeed(0.5)">0.5×</button>
-    <button class="speed-btn active" data-speed="1" onclick="Dashboard.setSpeed(1)">1×</button>
-    <button class="speed-btn" data-speed="2" onclick="Dashboard.setSpeed(2)">2×</button>
-    <button class="speed-btn" data-speed="5" onclick="Dashboard.setSpeed(5)">5×</button>
+    <button class="speed-btn" data-speed="0.5" onclick="Dashboard.setSpeed(0.5)">0.5x</button>
+    <button class="speed-btn active" data-speed="1" onclick="Dashboard.setSpeed(1)">1x</button>
+    <button class="speed-btn" data-speed="2" onclick="Dashboard.setSpeed(2)">2x</button>
+    <button class="speed-btn" data-speed="5" onclick="Dashboard.setSpeed(5)">5x</button>
   </div>
 
-  <button class="reset-btn" onclick="Dashboard.resetSim()">↺ RESET SIMULATION</button>
+  <button class="reset-btn" onclick="Dashboard.resetSim()">Reinitialize Simulation</button>
 </div>
 
-<button class="attack-toggle" onclick="Dashboard.toggleAttackPanel()">ATTACK CONSOLE</button>
+<button class="attack-toggle" onclick="Dashboard.toggleAttackPanel()">Directives</button>
 
 <!-- Node tooltip -->
 <div class="node-tooltip" id="node-tooltip"></div>
