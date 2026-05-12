@@ -14,6 +14,7 @@ from models.state_vector import (
     CUSUMAlert, IsoForestAlert, AlertEvent,
 )
 from models.threat_model import THREAT_LEVEL_MAP
+from layers.approval_queue import ApprovalQueue
 
 
 def _iso_now() -> str:
@@ -33,9 +34,10 @@ def _threat_level(confidence: float) -> str:
 
 
 class ResponseEngine:
-    def __init__(self):
+    def __init__(self, approval_queue: Optional[ApprovalQueue] = None):
         self.alert_log: List[AlertEvent] = []
         self.auto_contained: List[str] = []
+        self._queue: ApprovalQueue = approval_queue or ApprovalQueue()
 
     def process(
         self,
@@ -51,6 +53,7 @@ class ResponseEngine:
         net=None,
     ) -> Dict:
         events: List[AlertEvent] = []
+        queued_action_id: Optional[str] = None
 
         # --- ME-DT Mode A ---
         threat_level = "NONE"
@@ -59,8 +62,8 @@ class ResponseEngine:
             threat_level = tl
             actions = [mode_a.recommended_response]
 
-            # Auto-contain if confidence exceeds threshold
             if mode_a.confidence >= config.AUTO_CONTAIN_THRESHOLD:
+                # Auto-quarantine: confidence is high enough to act without human review
                 for subsystem in mode_a.affected_subsystems:
                     candidates = [
                         nid for nid, nd in twin.state.items()
@@ -71,6 +74,21 @@ class ResponseEngine:
                         twin.quarantine_node(nid, wn, net)
                         actions.append(f"AUTO-QUARANTINE: {nid}")
                         self.auto_contained.append(nid)
+            else:
+                # Queue for human approval: confident enough to alert, not to auto-act
+                action_id = str(uuid.uuid4())[:8]
+                self._queue.enqueue(
+                    action_id,
+                    tick=tick,
+                    node_id=mode_a.affected_subsystems[0] if mode_a.affected_subsystems else "unknown",
+                    subsystem=mode_a.affected_subsystems[0] if mode_a.affected_subsystems else "unknown",
+                    confidence=mode_a.confidence,
+                    threat_class=mode_a.threat_class,
+                    recommended_response=mode_a.recommended_response,
+                    evidence_trace=mode_a.evidence_trace,
+                )
+                queued_action_id = action_id
+                actions.append(f"QUEUED-FOR-APPROVAL: {action_id}")
 
             ev = AlertEvent(
                 alert_id=str(uuid.uuid4())[:8],
@@ -129,18 +147,22 @@ class ResponseEngine:
             events.append(ev)
             self.alert_log.append(ev)
 
+        # Expire stale pending actions each tick
+        self._queue.expire_stale()
+
         return {
-            "threat_level": threat_level,
-            "new_events":   [_alert_to_dict(e) for e in events],
-            "mode_b":       mode_b_raw,
-            "mode_c":       [
+            "threat_level":     threat_level,
+            "new_events":       [_alert_to_dict(e) for e in events],
+            "queued_action_id": queued_action_id,
+            "mode_b":           mode_b_raw,
+            "mode_c":           [
                 {
-                    "rank":                    h.rank,
-                    "attack_class":            h.attack_class,
-                    "attacker_intent":         h.attacker_intent,
+                    "rank":                     h.rank,
+                    "attack_class":             h.attack_class,
+                    "attacker_intent":          h.attacker_intent,
                     "physical_impact_severity": h.physical_impact_severity,
-                    "why_standard_ids_misses": h.why_standard_ids_misses,
-                    "recommended_monitoring":  h.recommended_monitoring,
+                    "why_standard_ids_misses":  h.why_standard_ids_misses,
+                    "recommended_monitoring":   h.recommended_monitoring,
                 }
                 for h in (mode_c or [])
             ],
