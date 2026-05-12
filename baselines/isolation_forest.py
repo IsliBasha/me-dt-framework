@@ -21,6 +21,18 @@ except ImportError:
 _model = None
 _feature_buffer: List[np.ndarray] = []
 _fitted_at_tick: int = -1
+_active_contamination: float = config.ISOFOREST_CONTAMINATION
+
+
+def set_contamination(contamination: float) -> None:
+    """Override the contamination used for the next model fit (clamped to (0, 0.5])."""
+    global _active_contamination
+    _active_contamination = max(1e-4, min(contamination, 0.5))
+
+
+def get_contamination() -> float:
+    """Return the currently active contamination value."""
+    return _active_contamination
 
 
 def _build_feature_vector(clean_readings: List[NodeReading]) -> Optional[np.ndarray]:
@@ -67,7 +79,7 @@ def process_tick(clean_readings: List[NodeReading], tick: int) -> Optional[IsoFo
             ], dtype=np.float32)
             _model = _IsoForest(
                 n_estimators=100,
-                contamination=config.ISOFOREST_CONTAMINATION,
+                contamination=_active_contamination,
                 random_state=42,
             )
             _model.fit(X)
@@ -97,7 +109,8 @@ def process_tick(clean_readings: List[NodeReading], tick: int) -> Optional[IsoFo
 
 
 def reset():
-    global _model, _fitted_at_tick
+    global _model, _fitted_at_tick, _active_contamination
     _model = None
     _fitted_at_tick = -1
+    _active_contamination = config.ISOFOREST_CONTAMINATION
     _feature_buffer.clear()

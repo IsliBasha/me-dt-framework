@@ -88,6 +88,9 @@ class TestLayer5RoutingMonitorTier(unittest.TestCase):
             affected_subsystems=["water"],
             recommended_response="increase monitoring",
             evidence_trace="sensor deviation observed",
+            physical_consequence="potential sensor drift",
+            reasoning_chain="deviation from baseline",
+            api_latency_ms=0.0,
         )
 
     def _make_engine(self):
@@ -146,6 +149,9 @@ class TestLayer5RoutingSandboxTier(unittest.TestCase):
             affected_subsystems=["water"],
             recommended_response="isolate pump",
             evidence_trace="pressure spike detected",
+            physical_consequence="pressure surge",
+            reasoning_chain="hammer transient detected",
+            api_latency_ms=0.0,
         )
 
     def _make_engine(self):
@@ -195,6 +201,9 @@ class TestLayer5RoutingQuarantineTier(unittest.TestCase):
             affected_subsystems=["water"],
             recommended_response="quarantine node",
             evidence_trace="confirmed actuator compromise",
+            physical_consequence="actuator out of control",
+            reasoning_chain="command anomaly confirmed",
+            api_latency_ms=0.0,
         )
 
     def _make_engine(self):
