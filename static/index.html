@@ -266,6 +266,30 @@
   </div>
 
   <!-- ============================================================
+       ROW 2b: Operator Approval Queue
+       ============================================================ -->
+  <div class="row-2b" id="approval-row">
+    <div class="card approval-card">
+      <div class="card-title">
+        <svg class="panel-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4">
+          <path d="M8 1.5 L14 4 L14 8.5 C14 11.8 11.2 14.2 8 15 C4.8 14.2 2 11.8 2 8.5 L2 4 Z"/>
+          <polyline points="5.5,8.5 7.5,10.5 11,6.5" stroke-width="1.6"/>
+        </svg>
+        <span>Operator Approval Queue</span>
+        <span class="title-sub">Awaiting Human Authorisation</span>
+        <span class="queue-count-badge" id="queue-badge" style="display:none"></span>
+      </div>
+      <div class="card-body" style="padding:8px 10px">
+        <div id="approval-list">
+          <div class="queue-empty" id="queue-empty">
+            No pending actions &mdash; system operating within auto-contain bounds
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================
        ROW 3: Metrics | Detector Cohort | Vulnerability Registry
        ============================================================ -->
   <div class="row-3">
