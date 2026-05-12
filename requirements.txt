@@ -1,0 +1,10 @@
+anthropic
+fastapi
+uvicorn[standard]
+websockets
+rich
+numpy
+wntr
+pandapower
+scikit-learn
+python-multipart
