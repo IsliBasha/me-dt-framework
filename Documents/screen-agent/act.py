@@ -97,8 +97,8 @@ def click_at(x_pct: float, y_pct: float, screen_w: int, screen_h: int,
     Move to (x_pct, y_pct) relative screen position and click.
     Adds natural mouse arc and pre-click hesitation.
     """
-    px = int(x_pct * screen_w)
-    py = int(y_pct * screen_h)
+    px = min(screen_w - 1, max(0, round(x_pct * screen_w)))
+    py = min(screen_h - 1, max(0, round(y_pct * screen_h)))
 
     duration = random.uniform(0.12, 0.35)
     pyautogui.moveTo(px, py, duration=duration, tween=pyautogui.easeInOutQuad)

@@ -4,6 +4,13 @@ TDD — RED: coordinate calibration tests for click_at in act.py.
 Bugs under test:
   1. int() truncates instead of round() — produces systematic ≤0.5px errors
   2. No clamping — x_pct ≥ 1.0 gives out-of-bounds px; negative pcts are negative px
+
+Isolation note:
+  test_abort.py and test_agent_dispatch.py inject stubs via
+  sys.modules['act'] = <stub> (direct assign).  We pop 'act' and reimport the
+  real module so our tests run against the live code, not a MagicMock.
+  We then grab whichever pyautogui object act.py bound at import time so
+  moveTo assertions target the right mock.
 """
 
 import sys
@@ -13,35 +20,54 @@ import unittest.mock as mock
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-# ── Stubs ─────────────────────────────────────────────────────────────────────
 
-_pag = types.ModuleType('pyautogui')
-_pag.PAUSE    = 0
-_pag.FAILSAFE = True
-_pag.moveTo   = mock.MagicMock()
-_pag.click    = mock.MagicMock()
-_pag.easeInOutQuad = lambda t: t
-sys.modules.setdefault('pyautogui', _pag)
+# ── Stubs (setdefault — don't evict stubs another file already installed) ─────
 
-_gi = types.ModuleType('gi')
-_gi.require_version = mock.MagicMock()
-_repo = types.ModuleType('gi.repository')
-_gtk  = types.ModuleType('gi.repository.Gtk')
-_gdk  = types.ModuleType('gi.repository.Gdk')
-_repo.Gtk = _gtk
-_repo.Gdk = _gdk
-sys.modules.setdefault('gi',                  _gi)
-sys.modules.setdefault('gi.repository',       _repo)
-sys.modules.setdefault('gi.repository.Gtk',   _gtk)
-sys.modules.setdefault('gi.repository.Gdk',   _gdk)
+def _ensure_stub(name: str, **attrs) -> types.ModuleType:
+    if name not in sys.modules:
+        m = types.ModuleType(name)
+        for k, v in attrs.items():
+            setattr(m, k, v)
+        sys.modules[name] = m
+    return sys.modules[name]
 
+
+_ensure_stub('gi',                  require_version=mock.MagicMock())
+_ensure_stub('gi.repository')
+_ensure_stub('gi.repository.Gtk')
+_ensure_stub('gi.repository.Gdk')
+_ensure_stub('pyautogui',
+             PAUSE=0, FAILSAFE=True,
+             moveTo=mock.MagicMock(), click=mock.MagicMock(),
+             easeInOutQuad=lambda t: t)
+
+# Patch gi.repository attributes so act.py's `from gi.repository import Gtk, Gdk` works
+_repo = sys.modules['gi.repository']
+if not hasattr(_repo, 'Gtk'):
+    _repo.Gtk = sys.modules['gi.repository.Gtk']
+if not hasattr(_repo, 'Gdk'):
+    _repo.Gdk = sys.modules['gi.repository.Gdk']
+
+# Force-reload the real act.py (other test files assign a stub directly into
+# sys.modules['act'], which would make our tests hit MagicMock, not click_at).
+sys.modules.pop('act', None)
 import act  # noqa: E402
 
+# Bind to whichever pyautogui act.py actually imported — this is the object
+# whose .moveTo we need to inspect.
+import pyautogui as _pag  # noqa: E402
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
+# Guarantee moveTo / click are MagicMocks (in case a real pyautogui slipped in).
+if not isinstance(getattr(_pag, 'moveTo', None), mock.MagicMock):
+    _pag.moveTo = mock.MagicMock()
+if not isinstance(getattr(_pag, 'click', None), mock.MagicMock):
+    _pag.click = mock.MagicMock()
+
+
+# ── Helper ────────────────────────────────────────────────────────────────────
 
 def _moved_to() -> tuple[int, int]:
-    """Return (px, py) passed to pyautogui.moveTo in the last click_at call."""
+    """Return (px, py) that click_at passed to pyautogui.moveTo."""
     args, _ = _pag.moveTo.call_args
     return args[0], args[1]
 
