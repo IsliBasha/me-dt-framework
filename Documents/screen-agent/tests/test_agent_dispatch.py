@@ -127,6 +127,7 @@ class TestDispatchActionsTextMode:
         _agent_module.act = _act_stub
         _act_stub.type_text.reset_mock()
         _act_stub.think_pause.reset_mock()
+        _agent_module._abort.clear()
 
     def test_text_mode_calls_type_text(self):
         fn = getattr(_agent_module, 'dispatch_actions', None)
@@ -143,6 +144,7 @@ class TestDispatchActionsCodeMode:
         _act_stub.type_text.reset_mock()
         _act_stub.think_pause.reset_mock()
         _edit_stub.diff_actions.reset_mock()
+        _agent_module._abort.clear()
 
     def test_code_mode_with_existing_code_uses_diff_path(self):
         """Core regression: code mode + existing_code must route to diff edits."""

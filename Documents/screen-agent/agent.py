@@ -30,9 +30,11 @@ import act
 import edit as ed
 
 # ── Configuration (override via .env) ─────────────────────────────────────────
-# Hotkey: <ctrl>+<alt>+g  (change HOTKEY in .env to any pynput combo string)
-HOTKEY       = os.getenv('HOTKEY',       '<ctrl>+<alt>+g')
+CLICK_HOTKEY = os.getenv('CLICK_HOTKEY', os.getenv('HOTKEY', '<ctrl>+<alt>+g'))
+TYPE_HOTKEY  = os.getenv('TYPE_HOTKEY',  '<ctrl>+<alt>+t')
 ABORT_HOTKEY = os.getenv('ABORT_HOTKEY', '<ctrl>+<alt>+x')
+# Keep HOTKEY alias so existing .env files still work
+HOTKEY = CLICK_HOTKEY
 WPM          = int(os.getenv('WPM', '72'))
 ERROR_RATE   = float(os.getenv('ERROR_RATE', '0.03'))
 
@@ -86,13 +88,13 @@ def _apply_diff_edits(old_code: str, new_code: str, screen_w: int, screen_h: int
             pyautogui.press('delete')
 
 
-def _on_activate() -> None:
+def _on_activate(mode: str) -> None:
     global _busy
     if _busy:
         return
     _busy = True
     try:
-        _run_cycle()
+        _run_cycle(mode)
     finally:
         _busy = False
 
@@ -104,14 +106,15 @@ def _on_abort() -> None:
     print('\n[!] Abort requested — stopping after current action.')
 
 
-def _run_cycle() -> None:
+def _run_cycle(mode: str = 'auto') -> None:
     _abort.clear()
-    print('\n[+] Capturing screen...')
+    label = {'click': 'click mode', 'type': 'type mode'}.get(mode, 'auto mode')
+    print(f'\n[+] Capturing screen... [{label}]')
     png, w, h = sc.capture()
 
     print('[+] Asking Claude...')
     try:
-        plan = ai.analyze(png, w, h)
+        plan = ai.analyze(png, w, h, mode=mode)
     except json.JSONDecodeError as exc:
         print(f'[!] Claude returned invalid JSON: {exc}')
         return
@@ -119,12 +122,16 @@ def _run_cycle() -> None:
         print(f'[!] AI error: {exc}')
         return
 
+    if _abort.is_set():
+        print('[!] Aborted before dispatch.')
+        return
+
     context = plan.get('context', '')
     actions = plan.get('actions', [])
     print(f'[+] Context : {context}')
     print(f'[+] Actions : {len(actions)}')
 
-    dispatch_actions(actions, plan, w, h)
+    dispatch_actions(actions, plan, w, h, mode=mode)
 
     # Auto-verify: if we clicked Run/Submit, re-analyze after a short wait
     ran_tests = any(
@@ -132,22 +139,34 @@ def _run_cycle() -> None:
             for word in ('run', 'test', 'submit', 'check'))
         for step in actions if step.get('type') == 'click'
     )
-    if ran_tests:
+    if ran_tests and not _abort.is_set():
         print('[+] Waiting for results...')
-        time.sleep(5)
-        _verify_results()
+        _abort.wait(5)
+        if not _abort.is_set():
+            _verify_results()
 
     print('[+] Done.\n')
 
 
-def dispatch_actions(actions: list, plan: dict, screen_w: int, screen_h: int) -> None:
+_MODE_ALLOWED: dict[str, set[str] | None] = {
+    'auto':  None,
+    'click': {'click', 'wait'},
+    'type':  {'type', 'key', 'wait'},
+}
+
+
+def dispatch_actions(actions: list, plan: dict, screen_w: int, screen_h: int,
+                     mode: str = 'auto') -> None:
     """Execute a list of Claude actions with human-like timing."""
+    allowed = _MODE_ALLOWED.get(mode)
     for step in actions:
         if _abort.is_set():
             print('[!] Aborted.')
             return
 
         kind = step.get('type', '')
+        if allowed is not None and kind not in allowed:
+            continue
 
         if kind == 'type':
             text = step.get('text', '')
@@ -183,7 +202,7 @@ def dispatch_actions(actions: list, plan: dict, screen_w: int, screen_h: int) ->
         elif kind == 'wait':
             seconds = float(step.get('seconds', 1.0))
             print(f'  → wait {seconds:.1f}s')
-            time.sleep(seconds)
+            _abort.wait(seconds)
 
         else:
             print(f'  → unknown action: {kind!r}')
@@ -212,14 +231,20 @@ def _verify_results() -> None:
 
 def main() -> None:
     print('Screen agent ready.')
-    print(f'  Hotkey  : {HOTKEY}')
+    print(f'  Click   : {CLICK_HOTKEY}  (multiple choice / buttons)')
+    print(f'  Type    : {TYPE_HOTKEY}   (text input / open questions)')
+    print(f'  Abort   : {ABORT_HOTKEY}')
     print(f'  WPM     : {WPM}')
     print(f'  Default : {ai.HAIKU_MODEL}')
     print(f'  Coding  : {ai.SONNET_MODEL}')
     print('Press Ctrl+C to exit.\n')
 
-    print(f'  Abort   : {ABORT_HOTKEY}')
-    with keyboard.GlobalHotKeys({HOTKEY: _on_activate, ABORT_HOTKEY: _on_abort}) as listener:
+    hotkeys = {
+        CLICK_HOTKEY: lambda: _on_activate('click'),
+        TYPE_HOTKEY:  lambda: _on_activate('type'),
+        ABORT_HOTKEY: _on_abort,
+    }
+    with keyboard.GlobalHotKeys(hotkeys) as listener:
         try:
             listener.join()
         except KeyboardInterrupt:

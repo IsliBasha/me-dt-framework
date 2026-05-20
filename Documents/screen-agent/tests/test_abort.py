@@ -164,12 +164,48 @@ class TestRunCycleClearsAbort:
         """Each new Ctrl+Alt+G cycle should reset the abort flag."""
         _agent_module._abort.set()
 
-        sc_stub = sys.modules['screen']
-        ai_stub = sys.modules['ai']
-        sc_stub.capture.return_value = (b'', 1920, 1080)
-        ai_stub.analyze.return_value = {'context': 'nothing', 'actions': []}
+        _agent_module.sc.capture.return_value = (b'', 1920, 1080)
+        _agent_module.ai.analyze.return_value = {'context': 'nothing', 'actions': []}
 
         _agent_module._run_cycle()
 
         assert not _agent_module._abort.is_set(), \
             "_run_cycle must clear _abort at the start of each cycle"
+
+    def test_run_cycle_stops_before_dispatch_if_abort_set_during_ai_call(self):
+        """Abort pressed while Claude is thinking must prevent any action from firing."""
+        _agent_module._abort.clear()
+        _act_stub.click_at.reset_mock()
+        _agent_module.act = _act_stub
+
+        def ai_sets_abort(*args, **kwargs):
+            _agent_module._abort.set()
+            return {'context': 'test', 'actions': [
+                {'type': 'click', 'x_pct': 0.5, 'y_pct': 0.5, 'description': 'btn'}
+            ]}
+
+        _agent_module.sc.capture.return_value = (b'', 1920, 1080)
+        _agent_module.ai.analyze.side_effect = ai_sets_abort
+        _agent_module._run_cycle()
+        _agent_module.ai.analyze.side_effect = None
+
+        _act_stub.click_at.assert_not_called()
+
+
+class TestDispatchWaitIsInterruptible:
+    def setup_method(self):
+        _agent_module.act = _act_stub
+        _agent_module._abort.clear()
+
+    def test_wait_action_exits_early_on_abort(self):
+        """A long wait action must return quickly when abort is set mid-sleep."""
+        import threading, time
+
+        actions = [{'type': 'wait', 'seconds': 10.0}]
+        threading.Timer(0.05, _agent_module._abort.set).start()
+
+        start = time.monotonic()
+        _agent_module.dispatch_actions(actions, {}, 1920, 1080)
+        elapsed = time.monotonic() - start
+
+        assert elapsed < 1.0, f"wait took {elapsed:.2f}s — should have aborted in <1s"

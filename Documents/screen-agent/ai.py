@@ -26,7 +26,8 @@ Response schema:
 }
 
 x_pct / y_pct are relative positions from the top-left (0.0) to \
-bottom-right (1.0) of the screenshot.
+bottom-right (1.0) of the IMAGE you received. Base these fractions on \
+the image's own pixel dimensions, not the reported screen resolution.
 
 ── General rules ────────────────────────────────────────────────────────
 - Text inputs / open questions  → "type" the best answer.
@@ -102,7 +103,41 @@ def _client_instance() -> anthropic.Anthropic:
     return _client
 
 
-def _messages_payload(b64: str, screen_w: int, screen_h: int) -> list:
+def _img_dims(screen_w: int, screen_h: int) -> tuple[int, int]:
+    """Compute the actual image dimensions after the resize step in screen.py."""
+    from screen import MAX_LONG_EDGE
+    long_edge = max(screen_w, screen_h)
+    if long_edge <= MAX_LONG_EDGE:
+        return screen_w, screen_h
+    scale = MAX_LONG_EDGE / long_edge
+    return int(screen_w * scale), int(screen_h * scale)
+
+
+_MODE_HINTS: dict[str, str] = {
+    'click': (
+        'MODE: Click-only. Return ONLY "click" and "wait" actions. '
+        'Do NOT return "type" or "key" actions. '
+        'Identify and click the correct multiple-choice option or button.'
+    ),
+    'type': (
+        'MODE: Type-only. Return ONLY "type", "key", and "wait" actions. '
+        'Do NOT return "click" actions. '
+        'Type the best answer into the active text field or editor.'
+    ),
+}
+
+
+def _messages_payload(b64: str, screen_w: int, screen_h: int,
+                      mode: str = 'auto') -> list:
+    img_w, img_h = _img_dims(screen_w, screen_h)
+    hint = _MODE_HINTS.get(mode, '')
+    text = (
+        f'Image dimensions: {img_w}x{img_h}. '
+        f'Screen resolution: {screen_w}x{screen_h}. '
+        'Use the IMAGE dimensions when computing x_pct/y_pct. '
+        + (f'{hint} ' if hint else '')
+        + 'What do you see and what actions should I take?'
+    )
     return [{
         'role': 'user',
         'content': [
@@ -110,18 +145,13 @@ def _messages_payload(b64: str, screen_w: int, screen_h: int) -> list:
                 'type': 'image',
                 'source': {'type': 'base64', 'media_type': 'image/jpeg', 'data': b64},
             },
-            {
-                'type': 'text',
-                'text': (
-                    f'Screen resolution: {screen_w}x{screen_h}. '
-                    'What do you see and what actions should I take?'
-                ),
-            },
+            {'type': 'text', 'text': text},
         ],
     }]
 
 
-def _call(b64: str, screen_w: int, screen_h: int, model: str) -> dict:
+def _call(b64: str, screen_w: int, screen_h: int, model: str,
+          mode: str = 'auto') -> dict:
     client = _client_instance()
     for attempt in range(3):
         try:
@@ -129,7 +159,7 @@ def _call(b64: str, screen_w: int, screen_h: int, model: str) -> dict:
                 model=model,
                 max_tokens=4096,
                 system=SYSTEM_PROMPT,
-                messages=_messages_payload(b64, screen_w, screen_h),
+                messages=_messages_payload(b64, screen_w, screen_h, mode),
             )
             break
         except anthropic.APIStatusError as exc:
@@ -176,16 +206,19 @@ def _get_code(b64: str, screen_w: int, screen_h: int) -> str:
     return raw
 
 
-def analyze(png_bytes: bytes, screen_w: int, screen_h: int) -> dict:
+def analyze(png_bytes: bytes, screen_w: int, screen_h: int,
+            mode: str = 'auto') -> dict:
     """
     Haiku handles UI analysis and action sequencing.
     For coding challenges, Sonnet writes the code as plain text (no JSON)
     and it is injected into Haiku's <<CODE>> placeholder.
+    mode='click' constrains Claude to click-only actions.
+    mode='type'  constrains Claude to type/key-only actions.
     """
     from screen import to_base64
     b64 = to_base64(png_bytes)
 
-    result = _call(b64, screen_w, screen_h, HAIKU_MODEL)
+    result = _call(b64, screen_w, screen_h, HAIKU_MODEL, mode=mode)
 
     if _is_coding(result):
         print('[+] Coding challenge detected — fetching code from Sonnet...')
