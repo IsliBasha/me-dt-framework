@@ -31,7 +31,9 @@ the image's own pixel dimensions, not the reported screen resolution.
 
 ── General rules ────────────────────────────────────────────────────────
 - Text inputs / open questions  → "type" the best answer.
-- Multiple choice / radio / checkbox → "click" the best option by coords.
+- Multiple choice / radio / checkbox → "click" the radio button CIRCLE or
+  checkbox SQUARE (the small selector to the LEFT of the option text).
+  Do NOT click on the option text itself — click the button/box element.
 - Buttons (Next, Submit, Run, Continue) → "click" after filling fields.
 - Nothing actionable visible → {"context": "nothing actionable", "actions": []}
 """
