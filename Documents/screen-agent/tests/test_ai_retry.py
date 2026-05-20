@@ -1,8 +1,5 @@
 """
-TDD — RED phase: tests for retry behaviour in ai.py.
-
-Issue: _get_code (Sonnet call) has no retry — a transient 500 crashes the cycle.
-_call retries on 500 but _get_code does not.
+Tests for ai.py — model routing by mode and _call retry on transient 500s.
 """
 
 import sys
@@ -31,79 +28,118 @@ def _stub_anthropic():
 
 _anth_stub, FakeAPIStatusError = _stub_anthropic()
 
-# Force-import the real ai module even if another test file already stubbed it.
 import importlib
 sys.modules.pop('ai', None)
 ai = importlib.import_module('ai')
 
 
-# ── Tests ─────────────────────────────────────────────────────────────────────
+# ── Helpers ───────────────────────────────────────────────────────────────────
 
-class TestGetCodeRetries:
-    """_get_code must retry on transient 500 errors, not crash immediately."""
+def _good_response(payload='{"context":"ok","actions":[]}'):
+    resp = mock.MagicMock()
+    resp.content = [mock.MagicMock(text=payload)]
+    return resp
 
+
+def _make_client(side_effects):
+    client = mock.MagicMock()
+    client.messages.create.side_effect = side_effects
+    ai._client = client
+    return client
+
+
+# ── Model routing by mode ─────────────────────────────────────────────────────
+
+class TestModelRouting:
     def setup_method(self):
         ai._client = None
 
-    def _make_client(self, side_effects):
-        client = mock.MagicMock()
-        client.messages.create.side_effect = side_effects
-        ai._client = client
-        return client
+    def test_click_mode_uses_haiku(self):
+        client = _make_client([_good_response()])
+        ai._call('b64', 1920, 1080, ai.HAIKU_MODEL, mode='click')
+        _, kwargs = client.messages.create.call_args
+        assert kwargs['model'] == ai.HAIKU_MODEL
 
-    def _good_response(self, code='def solution(): pass'):
-        resp = mock.MagicMock()
-        resp.content = [mock.MagicMock(text=code)]
-        return resp
+    def test_type_mode_uses_sonnet(self):
+        client = _make_client([_good_response()])
+        ai._call('b64', 1920, 1080, ai.SONNET_MODEL, mode='type')
+        _, kwargs = client.messages.create.call_args
+        assert kwargs['model'] == ai.SONNET_MODEL
 
-    def test_get_code_returns_code_on_first_try(self):
-        self._make_client([self._good_response('def ok(): pass')])
-        result = ai._get_code('b64data', 1920, 1080)
-        assert result == 'def ok(): pass'
+    def test_analyze_routes_haiku_for_click(self):
+        screen_stub = types.ModuleType('screen')
+        screen_stub.to_base64 = mock.MagicMock(return_value='b64')
+        screen_stub.MAX_LONG_EDGE = 1280
+        sys.modules['screen'] = screen_stub
 
-    def test_get_code_retries_once_on_500(self):
+        client = _make_client([_good_response()])
+        ai.analyze(b'', 1920, 1080, mode='click')
+        _, kwargs = client.messages.create.call_args
+        assert kwargs['model'] == ai.HAIKU_MODEL
+
+    def test_analyze_routes_sonnet_for_type(self):
+        screen_stub = types.ModuleType('screen')
+        screen_stub.to_base64 = mock.MagicMock(return_value='b64')
+        screen_stub.MAX_LONG_EDGE = 1280
+        sys.modules['screen'] = screen_stub
+
+        client = _make_client([_good_response()])
+        ai.analyze(b'', 1920, 1080, mode='type')
+        _, kwargs = client.messages.create.call_args
+        assert kwargs['model'] == ai.SONNET_MODEL
+
+    def test_analyze_routes_haiku_for_auto(self):
+        screen_stub = types.ModuleType('screen')
+        screen_stub.to_base64 = mock.MagicMock(return_value='b64')
+        screen_stub.MAX_LONG_EDGE = 1280
+        sys.modules['screen'] = screen_stub
+
+        client = _make_client([_good_response()])
+        ai.analyze(b'', 1920, 1080, mode='auto')
+        _, kwargs = client.messages.create.call_args
+        assert kwargs['model'] == ai.HAIKU_MODEL
+
+
+# ── _call retry on transient 500s ─────────────────────────────────────────────
+
+class TestCallRetries:
+    def setup_method(self):
+        ai._client = None
+
+    def test_returns_result_on_first_try(self):
+        _make_client([_good_response()])
+        result = ai._call('b64', 1920, 1080, ai.HAIKU_MODEL)
+        assert result == {'context': 'ok', 'actions': []}
+
+    def test_retries_once_on_500(self):
         err = FakeAPIStatusError('Internal Server Error', status_code=500)
-        self._make_client([err, self._good_response('def ok(): pass')])
-        result = ai._get_code('b64data', 1920, 1080)
-        assert result == 'def ok(): pass'
+        _make_client([err, _good_response()])
+        result = ai._call('b64', 1920, 1080, ai.HAIKU_MODEL)
+        assert result['context'] == 'ok'
 
-    def test_get_code_retries_twice_on_500(self):
+    def test_retries_twice_on_500(self):
         err = FakeAPIStatusError('Internal Server Error', status_code=500)
-        self._make_client([err, err, self._good_response('def ok(): pass')])
-        result = ai._get_code('b64data', 1920, 1080)
-        assert result == 'def ok(): pass'
+        _make_client([err, err, _good_response()])
+        result = ai._call('b64', 1920, 1080, ai.HAIKU_MODEL)
+        assert result['context'] == 'ok'
 
-    def test_get_code_raises_after_three_500s(self):
+    def test_raises_after_three_500s(self):
         err = FakeAPIStatusError('Internal Server Error', status_code=500)
-        self._make_client([err, err, err])
+        _make_client([err, err, err])
         try:
-            ai._get_code('b64data', 1920, 1080)
-            assert False, "_get_code should have raised after 3 consecutive 500s"
+            ai._call('b64', 1920, 1080, ai.HAIKU_MODEL)
+            assert False, "_call should have raised after 3 consecutive 500s"
         except Exception:
             pass
 
-    def test_get_code_does_not_retry_non_500_errors(self):
+    def test_does_not_retry_non_500_errors(self):
         err = FakeAPIStatusError('Bad Request', status_code=400)
-        client = self._make_client([err])
+        client = _make_client([err])
         try:
-            ai._get_code('b64data', 1920, 1080)
-            assert False, "_get_code should have raised on a 400"
+            ai._call('b64', 1920, 1080, ai.HAIKU_MODEL)
+            assert False, "_call should have raised on a 400"
         except Exception:
             pass
         assert client.messages.create.call_count == 1, (
-            "_get_code retried a non-500 error — it should not"
-        )
-
-
-class TestIscodingSignals:
-    """_is_coding should not over-trigger on weak signals."""
-
-    def test_coding_detected_on_strong_signal(self):
-        result = {'context': 'I see a code editor with a function implementation', 'actions': []}
-        assert ai._is_coding(result) is True
-
-    def test_coding_not_detected_on_just_python_word(self):
-        result = {'context': 'The page mentions Python version 3.11 release notes', 'actions': []}
-        assert ai._is_coding(result) is False, (
-            "_is_coding triggered on 'python' alone — signal matching is too broad"
+            "_call retried a non-500 error — it should not"
         )
