@@ -113,6 +113,7 @@ class AlertEvent:
     affected_nodes: List[str]
     response_actions: List[str]
     message: str
+    tier: Optional[str] = None
 
 
 @dataclass

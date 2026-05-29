@@ -201,6 +201,134 @@ const Dashboard = (() => {
   }
 
   // -----------------------------------------------------------------------
+  // Approval Queue
+  // -----------------------------------------------------------------------
+  const _resolvedActionIds = new Set();
+
+  function _renderQueueItem(action) {
+    const pct = Math.round(action.confidence * 100);
+    return `
+      <div class="queue-item" id="qitem-${action.action_id}">
+        <div class="queue-item-info">
+          <div class="queue-item-meta">
+            <span class="queue-threat-class">${action.threat_class || 'UNKNOWN'}</span>
+            <span class="queue-node">${action.node_id}</span>
+            <span class="queue-subsystem">${action.subsystem}</span>
+          </div>
+          <div class="queue-conf-row">
+            <span class="queue-conf-label">Confidence</span>
+            <div class="queue-conf-bar"><div class="queue-conf-fill" style="width:${pct}%"></div></div>
+            <span class="queue-conf-pct">${pct}%</span>
+          </div>
+          <div class="queue-evidence">${action.evidence_trace || '&mdash;'}</div>
+          <div class="queue-response">&#x27A4; ${action.recommended_response || '&mdash;'}</div>
+          <div class="queue-tick">Queued at T${action.tick}</div>
+        </div>
+        <div class="queue-btns">
+          <button class="queue-approve-btn" onclick="Dashboard.approveAction('${action.action_id}')">&#x2713; Approve</button>
+          <button class="queue-reject-btn"  onclick="Dashboard.rejectAction('${action.action_id}')">&#x2715; Reject</button>
+        </div>
+      </div>`;
+  }
+
+  function _makeEmpty() {
+    const d = document.createElement('div');
+    d.id = 'queue-empty';
+    d.className = 'queue-empty';
+    d.textContent = 'No pending actions — system operating within auto-contain bounds';
+    return d;
+  }
+
+  function _updateApprovalQueue(pending) {
+    const list  = document.getElementById('approval-list');
+    const badge = document.getElementById('queue-badge');
+    if (!list) return;
+
+    const fresh = pending.filter(a => !_resolvedActionIds.has(a.action_id));
+
+    if (fresh.length === 0) {
+      const hasItems = list.querySelector('.queue-item');
+      if (hasItems) {
+        list.innerHTML = '';
+        list.appendChild(_makeEmpty());
+      }
+      if (badge) badge.style.display = 'none';
+      return;
+    }
+
+    if (badge) {
+      badge.style.display = '';
+      badge.textContent = `${fresh.length} pending`;
+    }
+
+    const existingIds = new Set(
+      [...list.querySelectorAll('.queue-item')].map(el => el.id.replace('qitem-', ''))
+    );
+    const incomingIds = new Set(fresh.map(a => a.action_id));
+
+    existingIds.forEach(id => {
+      if (!incomingIds.has(id)) {
+        const el = document.getElementById(`qitem-${id}`);
+        if (el) el.remove();
+      }
+    });
+
+    const emptyEl = list.querySelector('.queue-empty');
+    if (emptyEl) emptyEl.remove();
+
+    fresh.forEach(action => {
+      if (!existingIds.has(action.action_id)) {
+        const wrapper = document.createElement('div');
+        wrapper.innerHTML = _renderQueueItem(action).trim();
+        list.appendChild(wrapper.firstChild);
+      }
+    });
+  }
+
+  async function _pollApprovalQueue() {
+    try {
+      const resp = await fetch('/api/approval-queue');
+      if (!resp.ok) return;
+      const data = await resp.json();
+      _updateApprovalQueue(data.pending || []);
+    } catch (_) { /* server may be starting */ }
+  }
+
+  async function approveAction(actionId) {
+    const el = document.getElementById(`qitem-${actionId}`);
+    if (el) el.style.opacity = '0.4';
+    try {
+      await fetch('/api/approve-action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action_id: actionId, approved_by: 'operator' }),
+      });
+      _resolvedActionIds.add(actionId);
+      if (el) el.remove();
+      _pollApprovalQueue();
+    } catch (_) {
+      if (el) el.style.opacity = '1';
+    }
+  }
+
+  async function rejectAction(actionId) {
+    const el = document.getElementById(`qitem-${actionId}`);
+    if (el) el.style.opacity = '0.4';
+    try {
+      await fetch('/api/reject-action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action_id: actionId, rejected_by: 'operator' }),
+      });
+      _resolvedActionIds.add(actionId);
+      if (el) el.remove();
+      _pollApprovalQueue();
+    } catch (_) {
+      if (el) el.style.opacity = '1';
+    }
+  }
+
+  // -----------------------------------------------------------------------
   // Keyboard shortcuts
   // -----------------------------------------------------------------------
   function _initKeyboard() {
@@ -232,9 +360,11 @@ const Dashboard = (() => {
     _buildAttackPanel();
     _initKeyboard();
     connect();
+    _pollApprovalQueue();
+    setInterval(_pollApprovalQueue, 3000);
   }
 
-  return { init, injectAttack, setSpeed, resetSim, toggleAttackPanel };
+  return { init, injectAttack, setSpeed, resetSim, toggleAttackPanel, approveAction, rejectAction };
 })();
 
 window.addEventListener('DOMContentLoaded', () => Dashboard.init());

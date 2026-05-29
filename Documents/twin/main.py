@@ -20,8 +20,12 @@ import config
 from layers.layer1_physical import init_water_network, init_power_network, run_tick
 from layers.layer2_ingestion import process_batch
 from layers.layer3_twin import DigitalTwin
-from layers.layer4_mythos import run_mode_a, run_mode_b, run_mode_c
+from layers.layer4_mythos import (
+    run_mode_a, run_mode_b, run_mode_c,
+    get_recent_transcripts, reset_transcripts,
+)
 from layers.layer5_response import ResponseEngine
+from layers.approval_queue import ApprovalQueue
 from baselines import cusum_detector, isolation_forest
 from attacks import scenario_library
 from utils import terminal_monitor, metrics, logger
@@ -45,8 +49,9 @@ _wn   = None
 _net  = None
 _orig_impedances = None
 _orig_loads = None
+_approval_queue = ApprovalQueue()
 _twin   = DigitalTwin()
-_engine = ResponseEngine()
+_engine = ResponseEngine(approval_queue=_approval_queue)
 
 _tick:      int   = 0
 _speed:     float = 1.0
@@ -165,11 +170,12 @@ async def get_report():
 
 @app.post("/api/reset")
 async def reset_sim():
-    global _tick, _twin, _engine, _vulnerability_atlas, _attack_state
+    global _tick, _twin, _engine, _approval_queue, _vulnerability_atlas, _attack_state
     global _pending_mode_a, _pending_mode_b, _pending_mode_c
     _tick = 0
+    _approval_queue = ApprovalQueue()
     _twin  = DigitalTwin()
-    _engine = ResponseEngine()
+    _engine = ResponseEngine(approval_queue=_approval_queue)
     _vulnerability_atlas = []
     _attack_state = {}
     _pending_mode_a = _pending_mode_b = _pending_mode_c = None
@@ -177,7 +183,54 @@ async def reset_sim():
     cusum_detector.reset_all()
     isolation_forest.reset()
     metrics.reset()
+    reset_transcripts()
     return {"status": "reset"}
+
+
+@app.get("/api/approval-queue")
+async def get_approval_queue():
+    return {
+        "pending":  [a.to_dict() for a in _approval_queue.pending()],
+        "approved": [a.to_dict() for a in _approval_queue.approved()],
+        "all":      _approval_queue.all_as_dicts(),
+    }
+
+
+@app.post("/api/approve-action")
+async def approve_action(request: Request):
+    body = await request.json()
+    action_id   = body.get("action_id", "")
+    approved_by = body.get("approved_by", "operator")
+    try:
+        action = _approval_queue.approve(action_id, approved_by=approved_by)
+        _twin.quarantine_node(action.node_id)
+        logger.log_event("APPROVAL", {"action_id": action_id, "approved_by": approved_by, "node_id": action.node_id})
+        return {"status": "approved", "action": action.to_dict()}
+    except KeyError:
+        return JSONResponse({"error": f"action '{action_id}' not found"}, status_code=404)
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=409)
+
+
+@app.post("/api/reject-action")
+async def reject_action(request: Request):
+    body = await request.json()
+    action_id   = body.get("action_id", "")
+    rejected_by = body.get("rejected_by", "operator")
+    reason      = body.get("reason")
+    try:
+        action = _approval_queue.reject(action_id, rejected_by=rejected_by, reason=reason)
+        logger.log_event("REJECTION", {"action_id": action_id, "rejected_by": rejected_by, "reason": reason})
+        return {"status": "rejected", "action": action.to_dict()}
+    except KeyError:
+        return JSONResponse({"error": f"action '{action_id}' not found"}, status_code=404)
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=409)
+
+
+@app.get("/api/transcripts")
+async def get_transcripts(n: int = 20):
+    return get_recent_transcripts(min(n, 50))
 
 
 @app.post("/api/speed")

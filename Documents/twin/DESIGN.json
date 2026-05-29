@@ -1,0 +1,134 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-05-19T00:00:00Z",
+  "title": "Design System: ME-DT Presentation",
+  "extensions": {
+    "colorMeta": {
+      "bg":             { "role": "neutral",  "displayName": "Warm Archive White", "canonical": "oklch(96% 0.004 90)",  "tonalRamp": ["oklch(20% 0.003 90)","oklch(35% 0.004 90)","oklch(51% 0.005 90)","oklch(65% 0.005 90)","oklch(78% 0.005 90)","oklch(88% 0.004 90)","oklch(93% 0.004 90)","oklch(96% 0.004 90)"] },
+      "surface":        { "role": "neutral",  "displayName": "Antique Surface",    "canonical": "oklch(93% 0.004 90)",  "tonalRamp": ["oklch(15% 0.003 90)","oklch(28% 0.004 90)","oklch(42% 0.004 90)","oklch(58% 0.005 90)","oklch(72% 0.005 90)","oklch(83% 0.004 90)","oklch(90% 0.004 90)","oklch(93% 0.004 90)"] },
+      "border":         { "role": "neutral",  "displayName": "Instrument Border",  "canonical": "oklch(81% 0.005 90)",  "tonalRamp": ["oklch(12% 0.003 90)","oklch(25% 0.004 90)","oklch(40% 0.005 90)","oklch(55% 0.005 90)","oklch(68% 0.005 90)","oklch(78% 0.005 90)","oklch(81% 0.005 90)","oklch(92% 0.003 90)"] },
+      "text":           { "role": "neutral",  "displayName": "Deep Ink",           "canonical": "oklch(8% 0.003 90)",   "tonalRamp": ["oklch(8% 0.003 90)","oklch(20% 0.004 90)","oklch(35% 0.005 90)","oklch(51% 0.005 90)","oklch(65% 0.005 90)","oklch(78% 0.005 90)","oklch(88% 0.004 90)","oklch(96% 0.004 90)"] },
+      "muted":          { "role": "neutral",  "displayName": "Calibrated Gray",    "canonical": "oklch(51% 0.005 100)", "tonalRamp": ["oklch(15% 0.003 100)","oklch(25% 0.004 100)","oklch(35% 0.004 100)","oklch(45% 0.005 100)","oklch(51% 0.005 100)","oklch(62% 0.005 100)","oklch(74% 0.005 100)","oklch(88% 0.004 100)"] },
+      "alert-red":      { "role": "primary",  "displayName": "Alert Signal",       "canonical": "oklch(55% 0.22 25)",   "tonalRamp": ["oklch(15% 0.06 25)","oklch(25% 0.12 25)","oklch(35% 0.18 25)","oklch(45% 0.21 25)","oklch(55% 0.22 25)","oklch(65% 0.19 25)","oklch(78% 0.12 25)","oklch(92% 0.04 25)"] },
+      "water-teal":     { "role": "tertiary", "displayName": "Water Signal",       "canonical": "oklch(79% 0.10 185)",  "tonalRamp": ["oklch(20% 0.04 185)","oklch(30% 0.06 185)","oklch(42% 0.08 185)","oklch(55% 0.09 185)","oklch(67% 0.10 185)","oklch(79% 0.10 185)","oklch(88% 0.07 185)","oklch(94% 0.04 185)"] },
+      "power-amber":    { "role": "tertiary", "displayName": "Power Signal",       "canonical": "oklch(84% 0.17 75)",   "tonalRamp": ["oklch(20% 0.07 75)","oklch(32% 0.10 75)","oklch(44% 0.13 75)","oklch(56% 0.15 75)","oklch(68% 0.17 75)","oklch(78% 0.17 75)","oklch(84% 0.17 75)","oklch(93% 0.09 75)"] },
+      "traffic-violet": { "role": "tertiary", "displayName": "Traffic Signal",     "canonical": "oklch(60% 0.26 295)",  "tonalRamp": ["oklch(15% 0.09 295)","oklch(25% 0.14 295)","oklch(38% 0.20 295)","oklch(48% 0.24 295)","oklch(60% 0.26 295)","oklch(72% 0.22 295)","oklch(84% 0.14 295)","oklch(93% 0.07 295)"] }
+    },
+    "typographyMeta": {
+      "display":  { "displayName": "Display",  "purpose": "Title and closing slide H1 only. Maximum scale; tightest tracking." },
+      "headline": { "displayName": "Headline", "purpose": "One per slide — the primary claim the slide makes." },
+      "title":    { "displayName": "Title",    "purpose": "Card headings and domain sub-labels. Subordinate to Headline." },
+      "body":     { "displayName": "Body",     "purpose": "Descriptive text in two-column slides. Max 52ch line length." },
+      "label":    { "displayName": "Label",    "purpose": "Mono uppercase — slide category labels, card-head classifications, nav counter." }
+    },
+    "shadows": [
+      { "name": "mechanical-click", "value": "3px 3px 0 rgba(0,0,0,0.1)", "transform": "translate(-1px,-1px)", "purpose": "Hover state on cards and layer bars. Zero blur — directional offset only. Simulates a key-cap press." },
+      { "name": "alert-pulse",      "value": "0 0 0 16px rgba(230,57,70,0)", "purpose": "Animated ring on QUARANTINE tier ring. Expanding-then-fading pulse." }
+    ],
+    "motion": [
+      { "name": "ease-out-expo",   "value": "cubic-bezier(0.16,1,0.3,1)", "purpose": "Universal easing for all transitions: slide entrance, reveal, bar fill, hover." },
+      { "name": "slide-duration",  "value": "520ms",  "purpose": "Slide in/out transition." },
+      { "name": "reveal-duration", "value": "700ms",  "purpose": "Content element reveal within an active slide." },
+      { "name": "reveal-stagger",  "value": "70ms",   "purpose": "Delay increment between staggered reveal elements (data-d attribute)." },
+      { "name": "bar-fill",        "value": "1300ms", "purpose": "Horizontal bar fill animation on detection comparison slides." }
+    ],
+    "background": {
+      "grid": {
+        "pattern": "crosshatch",
+        "size": "40px",
+        "color": "rgba(0,0,0,0.032)",
+        "note": "Engineering graph paper grid. Present at rest; opacity must not exceed 0.05."
+      }
+    }
+  },
+  "components": [
+    {
+      "name": "Alert Badge",
+      "kind": "chip",
+      "refersTo": "badge-alert",
+      "description": "Framework classifier chip in title slide. Alert Red tint, mono uppercase.",
+      "html": "<span class=\"ds-badge-alert\">Arkitekturë me 5 Shtresa</span>",
+      "css": ".ds-badge-alert { display: inline-block; font-family: 'DM Mono', monospace; font-size: 10px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; padding: 4px 12px; border-radius: 20px; background: rgba(230,57,70,0.1); border: 1px solid rgba(230,57,70,0.3); color: #e63946; }"
+    },
+    {
+      "name": "Neutral Badge",
+      "kind": "chip",
+      "refersTo": "badge-neutral",
+      "description": "Secondary classifier chip. Dark tint, muted text.",
+      "html": "<span class=\"ds-badge-neutral\">9 Skenarë Sulmi</span>",
+      "css": ".ds-badge-neutral { display: inline-block; font-family: 'DM Mono', monospace; font-size: 10px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; padding: 4px 12px; border-radius: 20px; background: rgba(10,10,10,0.06); border: 1px solid rgba(10,10,10,0.15); color: #767670; }"
+    },
+    {
+      "name": "Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "General-purpose slide card. Flat at rest; Mechanical Click on hover.",
+      "html": "<div class=\"ds-card\"><div class=\"ds-card-head\">Boshllëku Fizik</div><p class=\"ds-card-body\">Detektoret statistikore humbasin sulmet e ngadalta.</p></div>",
+      "css": ".ds-card { background: #ffffff; border: 1px solid #c8c8c0; border-radius: 2px; padding: clamp(0.8rem,2vw,1.4rem); transition: border-color .25s cubic-bezier(.16,1,.3,1), box-shadow .25s cubic-bezier(.16,1,.3,1), transform .25s cubic-bezier(.16,1,.3,1); } .ds-card:hover { border-color: #0a0a0a; box-shadow: 3px 3px 0 rgba(0,0,0,.1); transform: translate(-1px,-1px); } .ds-card-head { font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: #767670; margin-bottom: .5rem; } .ds-card-body { font-family: 'DM Sans', sans-serif; font-size: clamp(.65rem,1.1vw,.78rem); color: #767670; line-height: 1.55; }"
+    },
+    {
+      "name": "Layer Bar",
+      "kind": "custom",
+      "refersTo": "layer-bar",
+      "description": "Five-layer architecture row. Three-column grid with shimmer hover and Mechanical Click.",
+      "html": "<div class=\"ds-layer-bar ds-layer-ai\"><span class=\"ds-ln\">L4</span><span class=\"ds-lname\">Mythos AI Engine</span><span class=\"ds-ltech\">Mode A · B · C · Claude Sonnet 4</span></div>",
+      "css": ".ds-layer-bar { display: grid; grid-template-columns: 100px 1fr 130px; align-items: center; gap: 14px; padding: 12px 22px; background: #ffffff; border: 1px solid #c8c8c0; position: relative; overflow: hidden; transition: border-color .25s cubic-bezier(.16,1,.3,1), box-shadow .25s cubic-bezier(.16,1,.3,1), transform .2s cubic-bezier(.16,1,.3,1); } .ds-layer-bar::before { content: ''; position: absolute; top: 0; left: -80%; width: 60%; height: 100%; background: linear-gradient(90deg, transparent, rgba(255,255,255,.65), transparent); transition: left .45s ease; } .ds-layer-bar:hover::before { left: 130%; } .ds-layer-bar:hover { border-color: #0a0a0a; box-shadow: 3px 3px 0 rgba(0,0,0,.1); transform: translate(-1px,-1px); } .ds-layer-ai { border-top: 3px solid #e63946; } .ds-ln { font-family: 'DM Mono', monospace; font-size: 11px; color: #767670; } .ds-lname { font-family: 'DM Sans', sans-serif; font-size: 1rem; font-weight: 600; color: #e63946; } .ds-ltech { font-family: 'DM Mono', monospace; font-size: 9.5px; color: #767670; text-align: right; }"
+    },
+    {
+      "name": "Navigation Arrow",
+      "kind": "button",
+      "refersTo": "nav-arrow",
+      "description": "Circular slide navigation button. Muted at rest; Alert Red on hover.",
+      "html": "<button class=\"ds-arr\" aria-label=\"Rrëshqitja tjetër\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 14 14\" fill=\"none\"><path d=\"M5 3l4 4-4 4\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg></button>",
+      "css": ".ds-arr { width: 36px; height: 36px; border: 1px solid #c8c8c0; border-radius: 50%; background: rgba(255,255,255,.92); color: #767670; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: border-color .2s cubic-bezier(.16,1,.3,1), color .2s cubic-bezier(.16,1,.3,1); } .ds-arr:hover { border-color: #e63946; color: #e63946; } .ds-arr:focus-visible { outline: 2px solid #e63946; outline-offset: 2px; }"
+    },
+    {
+      "name": "Tier Ring — QUARANTINE",
+      "kind": "custom",
+      "refersTo": null,
+      "description": "Threat tier status ring at maximum severity. Alert Red border with pulse animation.",
+      "html": "<div class=\"ds-tier-ring ds-tier-quarantine\">0.92</div>",
+      "css": "@keyframes ds-pulseRing { 0%,100% { box-shadow: 0 0 0 0 rgba(230,57,70,.2); } 60% { box-shadow: 0 0 0 16px rgba(230,57,70,0); } } .ds-tier-ring { width: 60px; height: 60px; border-radius: 50%; border: 3px solid; display: flex; align-items: center; justify-content: center; font-family: 'DM Mono', monospace; font-size: 11px; font-weight: 700; } .ds-tier-quarantine { border-color: #e63946; color: #e63946; animation: ds-pulseRing 2s ease-in-out infinite; } @media (prefers-reduced-motion: reduce) { .ds-tier-quarantine { animation: none; } }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Calibrated Observer",
+    "overview": "This is a scientist's instrument panel brought to the page. Every element earns its place through function. The background is warm archive paper with a faint 40x40px crosshatch grid — present but never distracting. Surfaces are white lifted from that ground. The single accent, Alert Red, is reserved for what demands attention: active threats, confirmed detections, the live progress bar, and the active navigation dot. Everything else runs in warm grays and near-black ink.\n\nThe presentation is not performing. It is demonstrating. The design philosophy follows the thesis argument: show the evidence, let it speak, do not dress it up. Each slide has a single primary claim delivered by a tightly-kerned headline. Supporting material is typographically smaller, structurally subordinate.\n\nThis system explicitly rejects startup pitch deck aesthetics: urgency cliches, large metric callout boxes, confetti transitions, and gradient-soaked hero sections. It equally rejects theatrical dark-mode styling that reaches for neon glows or excessive terminal chrome used decoratively.",
+    "keyCharacteristics": [
+      "Warm off-white ground with engineering graph-paper grid at 3.2% opacity",
+      "One accent color (Alert Red, #e63946) at strict 10% or less surface coverage",
+      "Three domain viz colors (water, power, traffic) appear only inside SVG diagrams and data bars",
+      "Flat surfaces at rest; mechanical-click offset shadow on hover",
+      "DM Sans for all prose hierarchy; DM Mono for all labels, measurements, and identifiers",
+      "All motion uses cubic-bezier(0.16,1,0.3,1) (ease-out-expo); no bounce, no elastic"
+    ],
+    "rules": [
+      { "name": "The One Signal Rule",         "body": "Alert Red is used on 10% or less of any slide surface. Adding a second accent, increasing its coverage, or applying it decoratively violates the rule. When the red fires, it must mean something.",                                                             "section": "colors" },
+      { "name": "The Domain Containment Rule", "body": "Water Teal, Power Amber, and Traffic Violet are semantic data signals, not palette colors. They do not appear on slide backgrounds, card borders, heading accents, or any UI surface outside SVG diagrams and data bar segments.",  "section": "colors" },
+      { "name": "The Single Sans Rule",         "body": "DM Sans covers every prose role from Display down to Body. No secondary serif, no condensed variant. Hierarchy is expressed through scale and weight alone.",                                                                              "section": "typography" },
+      { "name": "The Mono Discipline Rule",     "body": "DM Mono appears only where the content is a measurement, a classification label, an identifier, or code. It does not appear in prose.",                                                                                                "section": "typography" },
+      { "name": "The Flat-By-Default Rule",     "body": "Surfaces at rest carry no shadow. Elevation is earned by state, not assumed as decoration.",                                                                                                                                           "section": "elevation" },
+      { "name": "The Click-Not-Float Rule",     "body": "The Mechanical Click shadow is an offset stroke with zero blur: 3px 3px 0. If the shadow has a blur radius greater than 0, it is the wrong effect.",                                                                                  "section": "elevation" }
+    ],
+    "dos": [
+      "Do use Alert Red for one purpose per slide: the active nav dot, the architecture layer highlight, the progress bar, or a data signal — never stacked roles.",
+      "Do express hierarchy through scale and weight contrast with a ratio of at least 1.25 between adjacent typographic levels.",
+      "Do keep the Mechanical Click shadow at exactly 3px 3px 0 rgba(0,0,0,0.1) with zero blur radius.",
+      "Do use DM Mono for every label, counter, classification tag, and domain readout.",
+      "Do keep domain colors (Water Teal, Power Amber, Traffic Violet) inside SVG diagram boundaries and bar chart segments only.",
+      "Do honor prefers-reduced-motion — all animations are already gated. Keep them gated on every new animation added.",
+      "Do maintain 52ch maximum line length on body text within slide columns.",
+      "Do keep the engineering grid background at exactly rgba(0,0,0,0.032) opacity."
+    ],
+    "donts": [
+      "Don't use border-left or border-right greater than 1px as a colored accent stripe on any card, list item, or callout. Rewrite with full borders, background tints, or leading numbered identifiers instead.",
+      "Don't add a second accent color to any slide. The palette is Restrained by design.",
+      "Don't apply domain viz colors (teal, amber, violet) to UI elements: borders, button backgrounds, heading colors, badge tints.",
+      "Don't use the generic slide-template vocabulary: bullet-point lists without hierarchy, identical card grids, clip-art icons.",
+      "Don't use gradient text (background-clip: text with a gradient fill).",
+      "Don't use modal dialogs. The attack console opens as an overlay panel. Maintain that pattern.",
+      "Don't introduce bounce or elastic easing curves.",
+      "Don't apply glassmorphism as decoration anywhere in the presentation layer."
+    ]
+  }
+}

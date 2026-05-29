@@ -7,14 +7,16 @@ Mode C (zero-day hypothesis). Never blocks the tick loop.
 import asyncio
 import json
 import time
+from collections import deque
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 import config
+import utils.audit_log as audit_log
 from models.state_vector import (
     ThreatAssessment, AttackPath, AttackStep, ZeroDayHypothesis
 )
-from models.threat_model import THREAT_TAXONOMY
+from models.threat_model import THREAT_TAXONOMY, KNOWN_THREATS
 
 try:
     import anthropic
@@ -36,6 +38,49 @@ def get_client() -> Optional["anthropic.AsyncAnthropic"]:
 
 
 # ---------------------------------------------------------------------------
+# Transcript log — bounded in-memory ring buffer + JSONL audit file
+# ---------------------------------------------------------------------------
+
+_transcript_counter: int = 0
+_transcript_log: "deque[Dict]" = deque(maxlen=50)
+
+
+def _append_transcript(
+    mode: str,
+    tick: int,
+    prompt: str,
+    response_raw: str,
+    parsed_result: Any,
+    latency_ms: float,
+) -> None:
+    global _transcript_counter
+    _transcript_counter += 1
+    entry: Dict[str, Any] = {
+        "id": _transcript_counter,
+        "tick": tick,
+        "mode": mode,
+        "prompt": prompt,
+        "response_raw": response_raw,
+        "parsed_result": parsed_result,
+        "latency_ms": round(latency_ms, 1),
+        "timestamp_iso": datetime.now(timezone.utc).isoformat(),
+    }
+    _transcript_log.append(entry)
+    audit_log.append_transcript(entry)
+
+
+def get_recent_transcripts(n: int = 20) -> List[Dict]:
+    entries = list(_transcript_log)
+    return entries[-n:] if len(entries) > n else entries
+
+
+def reset_transcripts() -> None:
+    global _transcript_counter
+    _transcript_counter = 0
+    _transcript_log.clear()
+
+
+# ---------------------------------------------------------------------------
 # Prompt context builder
 # ---------------------------------------------------------------------------
 
@@ -48,42 +93,64 @@ def build_context(
     tick = state_snapshot.get("tick", 0)
     ts   = datetime.now(timezone.utc).isoformat()
 
-    # Top 5 water nodes by deviation
+    # Water: show all nodes sorted by absolute pressure value (highest first — most affected)
     water = state_snapshot.get("water", {})
-    water_lines = []
-    for nid, nd in list(water.items())[:5]:
+    water_entries = []
+    for nid, nd in water.items():
         val = nd.get("value") or nd.get("pressure") or 0
-        water_lines.append(f"  {nid}: {val:.2f} {nd.get('unit','m')}")
+        try:
+            water_entries.append((nid, float(val), nd.get("unit", "m")))
+        except (TypeError, ValueError):
+            pass
+    water_entries.sort(key=lambda x: abs(x[1]), reverse=True)
+    water_lines = [f"  {nid}: {val:.2f} {unit}" for nid, val, unit in water_entries[:10]]
 
-    # Power buses with issues
+    # Power: all buses, flag anomalous ones
     power = state_snapshot.get("power", {})
     power_lines = []
     for nid, nd in power.items():
         vm = nd.get("vm_pu") or nd.get("value") or 1.0
         lp = nd.get("loading_pct") or nd.get("loading_percent") or 0
-        if isinstance(vm, float) and (vm < 0.95 or lp > 80):
-            power_lines.append(f"  bus {nid}: vm_pu={vm:.3f} loading={lp:.1f}%")
+        try:
+            vm, lp = float(vm), float(lp)
+        except (TypeError, ValueError):
+            continue
+        flag = " *** ANOMALOUS ***" if (vm < 0.95 or lp > 80) else ""
+        power_lines.append(f"  bus {nid}: vm_pu={vm:.3f} loading={lp:.1f}%{flag}")
 
-    # Traffic anomalies (clearly synthetic)
+    # Traffic (synthetic)
     traffic = state_snapshot.get("traffic", {})
     traffic_lines = []
     for nid, nd in list(traffic.items())[:3]:
         flow = nd.get("vehicle_flow") or nd.get("value") or 0
         phase = nd.get("signal_phase", "?")
-        traffic_lines.append(f"  {nid} [SYNTHETIC]: flow={flow:.1f} veh/min phase={phase}")
+        traffic_lines.append(f"  {nid} [SYNTHETIC]: flow={float(flow):.1f} veh/min phase={phase}")
 
-    # Violations summary
+    # Violations (all of them)
     viol_lines = [
         f"  [{v.get('severity','?')}] {v.get('rule_id','?')}: {v.get('description','?')} "
-        f"nodes={v.get('affected_nodes',[][:3])}"
-        for v in violations[:6]
+        f"nodes={v.get('affected_nodes',[])[:4]}"
+        for v in violations
     ]
 
-    # Anomaly sidecar
-    anomaly_lines = [
-        f"  {a.node_id} ({a.subsystem}): {a.event_type} "
-        f"value={a.value} mean={a.rolling_mean:.2f if a.rolling_mean else 'N/A'}"
-        for a in anomaly_sidecar[:5]
+    # Anomaly sidecar — full list with event type counts
+    missing_count = sum(1 for a in anomaly_sidecar if getattr(a, "event_type", "") == "MISSING")
+    spike_count   = sum(1 for a in anomaly_sidecar if getattr(a, "event_type", "") in ("SPIKE", "HIGH", "LOW"))
+    anomaly_lines = []
+    for a in anomaly_sidecar[:15]:
+        mean_str = f"{a.rolling_mean:.2f}" if getattr(a, "rolling_mean", None) is not None else "N/A"
+        anomaly_lines.append(
+            f"  {a.node_id} ({a.subsystem}): {a.event_type} value={a.value} mean={mean_str}"
+        )
+
+    # Signal fingerprint — pre-computed distinguishing features
+    fingerprint_lines = [
+        f"  MISSING events in sidecar: {missing_count}  (high count = DOS/OT indicator)",
+        f"  SPIKE/anomaly events: {spike_count}",
+        f"  Physics violations firing: {[v.get('rule_id') for v in violations]}",
+        f"  Subsystems with violations: {list({v.get('subsystem') for v in violations})}",
+        f"  Power buses below 0.95 pu: {sum(1 for nd in power.values() if float(nd.get('vm_pu') or nd.get('value') or 1.0) < 0.95)}",
+        f"  Power buses overloaded >80%: {sum(1 for nd in power.values() if float(nd.get('loading_pct') or nd.get('loading_percent') or 0) > 80)}",
     ]
 
     # Vulnerability atlas
@@ -94,24 +161,25 @@ def build_context(
 
     ctx = f"""TICK: {tick}  TIMESTAMP: {ts}
 
+SIGNAL FINGERPRINT (key distinguishing features — use this to select threat class):
+{chr(10).join(fingerprint_lines)}
+
 ACTIVE PHYSICS VIOLATIONS ({len(violations)}):
 {chr(10).join(viol_lines) if viol_lines else "  None"}
 
-ANOMALY SIDECAR EVENTS ({len(anomaly_sidecar)}):
+ANOMALY SIDECAR ({len(anomaly_sidecar)} total events — showing up to 15):
 {chr(10).join(anomaly_lines) if anomaly_lines else "  None"}
 
-WATER STATE (Net3 WNTR simulation — top 5 nodes):
+WATER STATE (Net3 WNTR — sorted by pressure magnitude, top 10):
 {chr(10).join(water_lines) if water_lines else "  No data"}
 
-POWER STATE (IEEE case33bw pandapower — buses with issues):
+POWER STATE (IEEE case33bw pandapower — all buses):
 {chr(10).join(power_lines) if power_lines else "  All buses nominal"}
 
 TRAFFIC STATE (SYNTHETIC DATA — illustrative only):
 {chr(10).join(traffic_lines) if traffic_lines else "  No data"}
 
 VULNERABILITY ATLAS: {atlas_summary}
-
-THREAT TAXONOMY: {" | ".join(THREAT_TAXONOMY)}
 """
     return ctx
 
@@ -120,26 +188,23 @@ THREAT TAXONOMY: {" | ".join(THREAT_TAXONOMY)}
 # Mode A — Continuous Analysis
 # ---------------------------------------------------------------------------
 
-_MODE_A_SYSTEM = """You are the Mythos AI threat detection engine embedded
-in a smart city digital twin framework. You analyze real-time
-cyber-physical state data from two physically simulated subsystems
-(water network modeled with WNTR/Net3, power grid modeled with
-pandapower/IEEE case33bw) and one synthetic traffic subsystem.
+_MODE_A_SYSTEM = """You are the Mythos AI threat detector for a smart city digital twin (WNTR water, pandapower power, synthetic traffic).
 
-Your role: detect cyber-physical attacks by reasoning about patterns
-across subsystems, not just individual sensor thresholds. Consider
-attacker intent, physical plausibility, and cross-domain correlations.
+Classify the current state using ONLY these threat classes and their distinguishing signals:
+- WATER_HAMMER: W1 rule firing, rapid pressure oscillation in water nodes
+- FALSE_DATA_INJECTION: zero-demand with rising pressure (water W2/W3), or load mismatch (power P3/P4)
+- LOAD_REDISTRIBUTION: P1/P2 rules, multiple power buses ANOMALOUS, loading >80%
+- DENIAL_OF_SERVICE_OT: high MISSING event count in sidecar, few/no physics violations
+- CROSS_DOMAIN_CASCADE: violations in BOTH water AND power simultaneously, X1/X2 rules
+- SCADA_REPLAY: power P3 violation, stale topology readings
+- ACTUATOR_HIJACK: chemical concentration spike in water nodes, actuator override
+- RECONNAISSANCE: sub-threshold perturbations across many nodes, no violations firing
+- NONE: truly nominal state
 
-Respond ONLY in valid JSON matching this exact schema:
-{
-  "threat_class": "<taxonomy class or NONE>",
-  "confidence": <float 0.0-1.0>,
-  "evidence_trace": "<one sentence explaining the key evidence>",
-  "affected_subsystems": ["water"|"power"|"traffic"],
-  "physical_consequence": "<predicted real-world effect if unaddressed>",
-  "recommended_response": "<specific actionable response>",
-  "reasoning_chain": "<2-3 sentences of chain-of-thought reasoning>"
-}"""
+Use the SIGNAL FINGERPRINT section to classify. Do NOT default to DENIAL_OF_SERVICE_OT unless MISSING event count dominates and physics violations are absent.
+
+Respond ONLY with valid JSON — no markdown, no code fences, no explanation outside the JSON:
+{"threat_class":"...","confidence":0.0,"evidence_trace":"...","affected_subsystems":[],"physical_consequence":"...","recommended_response":"...","reasoning_chain":"..."}"""
 
 
 async def run_mode_a(
@@ -150,25 +215,38 @@ async def run_mode_a(
     tick: int,
 ) -> Optional[ThreatAssessment]:
     client = get_client()
-    if client is None:
-        return _mock_mode_a(tick)
-
     ctx = build_context(state_snapshot, violations, anomaly_sidecar, vulnerability_atlas)
+    prompt = ctx + "\nAnalyze the current state."
     t0 = time.perf_counter()
+
+    if client is None:
+        result = _mock_mode_a(tick)
+        latency_ms = (time.perf_counter() - t0) * 1000
+        _append_transcript("A", tick, prompt, "[DEMO MODE — no API key]",
+                           _ta_to_dict(result), latency_ms)
+        return result
+
+    raw = ""
     try:
         resp = await asyncio.wait_for(
             client.messages.create(
                 model=config.ANTHROPIC_MODEL,
                 max_tokens=config.MAX_TOKENS_MODE_A,
                 system=_MODE_A_SYSTEM,
-                messages=[{"role": "user", "content": ctx + "\nAnalyze the current state."}],
+                messages=[{"role": "user", "content": prompt}],
             ),
             timeout=30.0,
         )
         latency_ms = (time.perf_counter() - t0) * 1000
         raw = resp.content[0].text.strip()
+        # Strip markdown code fences if Claude wraps the JSON
+        if raw.startswith("```"):
+            raw = raw.split("```")[1]
+            if raw.startswith("json"):
+                raw = raw[4:]
+            raw = raw.strip()
         data = json.loads(raw)
-        return ThreatAssessment(
+        result = ThreatAssessment(
             threat_class=data.get("threat_class", "UNKNOWN"),
             confidence=float(data.get("confidence", 0.0)),
             evidence_trace=data.get("evidence_trace", ""),
@@ -179,15 +257,35 @@ async def run_mode_a(
             tick=tick,
             api_latency_ms=round(latency_ms, 1),
         )
+        _append_transcript("A", tick, prompt, raw, _ta_to_dict(result), latency_ms)
+        return result
     except json.JSONDecodeError as e:
-        print(f"[Layer4/A] JSON decode error at tick {tick}: {e}")
+        latency_ms = (time.perf_counter() - t0) * 1000
+        print(f"[Layer4/A] JSON decode error at tick {tick}: {e} | raw={raw[:120]!r}")
+        _append_transcript("A", tick, prompt, raw, None, latency_ms)
         return None
     except asyncio.TimeoutError:
+        latency_ms = (time.perf_counter() - t0) * 1000
         print(f"[Layer4/A] Timeout at tick {tick}")
+        _append_transcript("A", tick, prompt, "[TIMEOUT]", None, latency_ms)
         return None
     except Exception as e:
+        latency_ms = (time.perf_counter() - t0) * 1000
         print(f"[Layer4/A] API error at tick {tick}: {e}")
+        _append_transcript("A", tick, prompt, f"[ERROR: {e}]", None, latency_ms)
         return None
+
+
+def _ta_to_dict(ta: ThreatAssessment) -> Dict:
+    return {
+        "threat_class": ta.threat_class,
+        "confidence": ta.confidence,
+        "evidence_trace": ta.evidence_trace,
+        "affected_subsystems": ta.affected_subsystems,
+        "physical_consequence": ta.physical_consequence,
+        "recommended_response": ta.recommended_response,
+        "reasoning_chain": ta.reasoning_chain,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -219,28 +317,41 @@ async def run_mode_b(
     tick: int,
 ) -> Optional[Dict]:
     client = get_client()
-    if client is None:
-        return _mock_mode_b(tick)
-
     clone = json.dumps(state_snapshot, default=str)[:4000]
+    prompt = f"Red-team target:\n{clone}"
     t0 = time.perf_counter()
+
+    if client is None:
+        result = _mock_mode_b(tick)
+        latency_ms = (time.perf_counter() - t0) * 1000
+        _append_transcript("B", tick, prompt, "[DEMO MODE — no API key]", result, latency_ms)
+        return result
+
     try:
         resp = await asyncio.wait_for(
             client.messages.create(
                 model=config.ANTHROPIC_MODEL,
                 max_tokens=config.MAX_TOKENS_MODE_B,
                 system=_MODE_B_SYSTEM,
-                messages=[{"role": "user", "content": f"Red-team target:\n{clone}"}],
+                messages=[{"role": "user", "content": prompt}],
             ),
             timeout=30.0,
         )
         latency_ms = (time.perf_counter() - t0) * 1000
         raw = resp.content[0].text.strip()
+        if raw.startswith("```"):
+            raw = raw.split("```")[1]
+            if raw.startswith("json"):
+                raw = raw[4:]
+            raw = raw.strip()
         data = json.loads(raw)
         data["tick"] = tick
+        _append_transcript("B", tick, prompt, raw, data, latency_ms)
         return data
     except Exception as e:
+        latency_ms = (time.perf_counter() - t0) * 1000
         print(f"[Layer4/B] Error at tick {tick}: {e}")
+        _append_transcript("B", tick, prompt, f"[ERROR: {e}]", None, latency_ms)
         return None
 
 
@@ -292,9 +403,6 @@ async def run_mode_c(
     tick: int,
 ) -> Optional[List[ZeroDayHypothesis]]:
     client = get_client()
-    if client is None:
-        return _mock_mode_c(tick)
-
     anomaly_details = {
         "tick": tick,
         "violations": violations,
@@ -303,6 +411,17 @@ async def run_mode_c(
             for a in anomaly_sidecar[:10]
         ],
     }
+    prompt = f"Unexplained anomaly:\n{json.dumps(anomaly_details, default=str)}"
+    t0 = time.perf_counter()
+
+    if client is None:
+        result = _mock_mode_c(tick)
+        latency_ms = (time.perf_counter() - t0) * 1000
+        parsed = [{"rank": h.rank, "attack_class": h.attack_class,
+                   "attacker_intent": h.attacker_intent} for h in result]
+        _append_transcript("C", tick, prompt, "[DEMO MODE — no API key]", parsed, latency_ms)
+        return result
+
     try:
         resp = await asyncio.wait_for(
             client.messages.create(
@@ -311,11 +430,12 @@ async def run_mode_c(
                 system=_MODE_C_SYSTEM,
                 messages=[{
                     "role": "user",
-                    "content": f"Unexplained anomaly:\n{json.dumps(anomaly_details, default=str)}",
+                    "content": prompt,
                 }],
             ),
             timeout=30.0,
         )
+        latency_ms = (time.perf_counter() - t0) * 1000
         raw = resp.content[0].text.strip()
         data = json.loads(raw)
         results = []
@@ -328,9 +448,14 @@ async def run_mode_c(
                 why_standard_ids_misses=h.get("why_standard_ids_misses", ""),
                 recommended_monitoring=h.get("recommended_monitoring", ""),
             ))
+        parsed = [{"rank": h.rank, "attack_class": h.attack_class,
+                   "attacker_intent": h.attacker_intent} for h in results]
+        _append_transcript("C", tick, prompt, raw, parsed, latency_ms)
         return results
     except Exception as e:
+        latency_ms = (time.perf_counter() - t0) * 1000
         print(f"[Layer4/C] Error at tick {tick}: {e}")
+        _append_transcript("C", tick, prompt, f"[ERROR: {e}]", None, latency_ms)
         return None
 
 

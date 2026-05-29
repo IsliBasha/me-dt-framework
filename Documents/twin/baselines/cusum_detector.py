@@ -13,7 +13,18 @@ _S_low:   Dict[str, float] = {}
 _mu:      Dict[str, float] = {}
 _sigma:   Dict[str, float] = {}
 _warmup:  Dict[str, List[float]] = {}
+_h_override: Dict[str, float] = {}
 _WARMUP_N = 10
+
+
+def set_node_threshold(node_id: str, h: float) -> None:
+    """Override the CUSUM h threshold for a specific node."""
+    _h_override[node_id] = h
+
+
+def get_node_threshold(node_id: str) -> float:
+    """Return the effective h threshold for a node (override or config default)."""
+    return _h_override.get(node_id, config.CUSUM_H)
 
 
 def _reset_accumulator(node_id: str):
@@ -41,7 +52,7 @@ def update(node_id: str, value: float, tick: int) -> Optional[CUSUMAlert]:
     mu    = _mu[node_id]
     sigma = _sigma[node_id]
     k     = config.CUSUM_K
-    h     = config.CUSUM_H
+    h     = get_node_threshold(node_id)
 
     z = (value - mu) / sigma
 
@@ -79,3 +90,4 @@ def reset_all():
     _mu.clear()
     _sigma.clear()
     _warmup.clear()
+    _h_override.clear()
