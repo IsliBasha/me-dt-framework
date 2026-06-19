@@ -38,6 +38,12 @@ ANTHROPIC_PRICE_PER_MTOK_OUTPUT = 15.0
 MODE_A_CACHE_TTL_TICKS = 5
 MODE_A_CACHE_ENABLED   = True
 
+# Human-in-the-loop containment mode (Ticket 6)
+# "auto"   — quarantine immediately on QUARANTINE tier
+# "semi"   — queue action, auto-execute after TTL if not reviewed
+# "manual" — queue action, never auto-execute
+CONTAINMENT_MODE = "semi"
+
 NET3_URL = (
     "https://raw.githubusercontent.com/USEPA/WNTR/main/wntr/tests/networks/Net3.inp"
 )
