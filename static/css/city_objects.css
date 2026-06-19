@@ -1,0 +1,552 @@
+/* ============================================================
+   city_objects.css — 3D CSS perspective infrastructure figures
+   Hybrid SVG (topology) + HTML (objects) overlay for MYTHOS map.
+   Evolves the HAL/red theme. Animates transform + opacity only.
+   ============================================================ */
+
+/* ---- Object-local design tokens (layered on dashboard.css :root) ---- */
+:root {
+  --obj-steel:       oklch(24% 0.03 210);   /* dark gunmetal body  */
+  --obj-steel-lit:   oklch(36% 0.04 210);   /* lit faces           */
+  --obj-edge:        oklch(50% 0.045 210);  /* dim steel highlight */
+  --obj-shadow:      oklch(12% 0.02 210);   /* cast / dark faces    */
+  --obj-water:       #5a8fba;
+  --obj-power:       #d4923a;
+  --obj-traffic:     #5a5550;
+
+  --obj-scene-persp: 540px;
+  --obj-tilt:        rotateX(56deg);         /* world-plane tilt    */
+}
+
+/* ============================================================
+   Overlay + figure scaffold
+   ============================================================ */
+.city-object-layer {
+  position: absolute;
+  /* small top inset gives the tall top-row substations headroom so their
+     insulators never clip the map frame; ~3% drift vs the decorative pipes. */
+  inset: 12px 0 -12px 0;
+  pointer-events: none;        /* figures opt back in */
+  z-index: 3;                  /* above SVG topology, below tooltip */
+  overflow: visible;
+  perspective: var(--obj-scene-persp);
+  perspective-origin: 50% 38%;
+}
+
+.obj-figure {
+  position: absolute;
+  width: 0;
+  height: 0;
+  transform: scale(1.35);   /* figures sit at their coordinate; scale for presence */
+  transform-style: preserve-3d;
+  pointer-events: auto;
+  cursor: pointer;
+  --accent: var(--obj-traffic);
+  --tint:   var(--obj-traffic);
+}
+
+.obj-pump      { --accent: var(--obj-water);   --tint: var(--obj-water); }
+.obj-substation{ --accent: var(--obj-power);   --tint: var(--obj-power); }
+.obj-camera    { --accent: var(--obj-traffic); --tint: var(--obj-traffic); }
+
+/* The lift-and-tilt stage every object stands on. Hover = subtle rise. */
+.obj-stage {
+  position: absolute;
+  left: 0; top: 0;
+  transform-style: preserve-3d;
+  transform: var(--obj-tilt) translateZ(0);
+  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+              filter 0.3s ease;
+  will-change: transform;
+}
+.obj-figure:hover .obj-stage { transform: var(--obj-tilt) translateZ(6px); }
+
+/* Contact shadow on the world plane (lies flat, no tilt of its own) */
+.obj-shadow-disc {
+  position: absolute;
+  left: -13px; top: -13px;
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 50%,
+              oklch(0% 0 0 / 0.55), oklch(0% 0 0 / 0) 68%);
+  transform: var(--obj-tilt);
+  opacity: 0.7;
+}
+
+/* Status footplate ring — accent-tinted halo at the base */
+.obj-base-ring {
+  position: absolute;
+  left: -11px; top: -11px;
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  border: 1px solid color-mix(in oklab, var(--accent) 55%, transparent);
+  background: radial-gradient(circle,
+              color-mix(in oklab, var(--accent) 16%, transparent),
+              transparent 70%);
+  transform: var(--obj-tilt);
+  opacity: 0.85;
+  animation: base-breathe 3.4s ease-in-out infinite;
+}
+@keyframes base-breathe {
+  0%, 100% { opacity: 0.45; }
+  50%      { opacity: 0.9; }
+}
+
+/* Monospace node label, billboarded below the object */
+.obj-label {
+  position: absolute;
+  left: 50%;
+  bottom: -22px;
+  transform: translateX(-50%);
+  font-family: var(--font-mono);
+  font-size: 7px;
+  letter-spacing: 0.10em;
+  color: color-mix(in oklab, var(--accent) 78%, var(--text));
+  text-shadow: 0 0 5px oklch(0% 0 0 / 0.9);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0.82;
+}
+.obj-reading {
+  display: block;
+  font-size: 6.5px;
+  color: var(--text-muted);
+  letter-spacing: 0.04em;
+  margin-top: 1px;
+}
+
+/* ============================================================
+   PUMP — vertical CSS cylinder with rotating cap
+   ============================================================ */
+/* Upright billboard holding the cylinder barrel — faces the camera, does NOT
+   inherit the ground tilt, so the body reads as a true vertical cylinder. */
+.obj-pump .pump-billboard {
+  position: absolute;
+  left: 0; top: 0;
+  width: 0; height: 0;
+}
+/* Barrel: vertical body. Horizontal gradient fakes the rounded-cylinder
+   shading; the cap ellipses (in the tilted plane) close it off top & bottom. */
+.obj-pump .pump-barrel {
+  position: absolute;
+  left: -8px; top: -22px;
+  width: 16px; height: 22px;
+  background:
+    linear-gradient(90deg,
+      var(--obj-shadow) 0%,
+      oklch(23% 0.03 210) 18%,
+      var(--obj-steel-lit) 46%,
+      oklch(34% 0.045 210) 55%,
+      var(--obj-steel) 78%,
+      var(--obj-shadow) 100%);
+  border-radius: 8px / 3px;
+  border-left: 1px solid var(--obj-shadow);
+  border-right: 1px solid var(--obj-shadow);
+  box-shadow: inset 0 -5px 8px oklch(0% 0 0 / 0.5),
+              inset 0 4px 6px oklch(0% 0 0 / 0.35);
+}
+/* accent process-band wrapping the barrel partway up */
+.obj-pump .pump-band {
+  position: absolute;
+  left: -8px; top: -12px;
+  width: 16px; height: 3px;
+  border-radius: 8px / 1.5px;
+  background: linear-gradient(90deg,
+      color-mix(in oklab, var(--accent) 35%, black),
+      color-mix(in oklab, var(--accent) 92%, white) 50%,
+      color-mix(in oklab, var(--accent) 35%, black));
+  box-shadow: 0 0 5px color-mix(in oklab, var(--accent) 55%, transparent);
+  opacity: 0.95;
+}
+/* bottom cap ellipse — lies flat in the tilted ground plane at the base */
+.obj-pump .pump-cap-bottom {
+  position: absolute;
+  left: -8px; top: -3px;
+  width: 16px; height: 6px;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at 50% 38%,
+      var(--obj-steel), var(--obj-shadow));
+  border: 0.5px solid var(--obj-edge);
+}
+/* top stage lifts the spinning cap to the barrel top (in the tilted plane) */
+.obj-pump .obj-stage:last-of-type { transform: var(--obj-tilt) translateZ(0); }
+.obj-pump .pump-cap-top {
+  position: absolute;
+  left: -8px; top: -25px;
+  width: 16px; height: 6px;
+  border-radius: 50%;
+  background:
+    conic-gradient(from 0deg,
+      var(--obj-steel-lit), var(--obj-edge), oklch(34% 0.045 210),
+      var(--obj-edge), var(--obj-steel-lit), var(--obj-edge), var(--obj-steel-lit));
+  border: 0.5px solid var(--obj-edge);
+  box-shadow: 0 0 5px oklch(0% 0 0 / 0.55), 0 -7px 9px oklch(0% 0 0 / 0.4);
+  transform-style: preserve-3d;
+  animation: pump-spin 4.5s linear infinite;
+  will-change: transform;
+}
+/* impeller spokes drawn on the cap with a sharp conic slice */
+.obj-pump .pump-cap-top::before {
+  content: '';
+  position: absolute;
+  inset: 1.5px;
+  border-radius: 50%;
+  background:
+    repeating-conic-gradient(from 0deg,
+      color-mix(in oklab, var(--accent) 55%, transparent) 0deg 9deg,
+      transparent 9deg 45deg);
+  opacity: 0.7;
+}
+/* hub bolt */
+.obj-pump .pump-cap-top::after {
+  content: '';
+  position: absolute;
+  left: 50%; top: 50%;
+  width: 2.5px; height: 2.5px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  background: var(--obj-edge);
+}
+@keyframes pump-spin {
+  from { transform: translateZ(22px) rotate(0deg); }
+  to   { transform: translateZ(22px) rotate(360deg); }
+}
+
+/* ============================================================
+   SUBSTATION — gunmetal cuboid + insulator fins w/ corona
+   ============================================================ */
+.obj-substation .sub-body { position: absolute; transform-style: preserve-3d; }
+
+/* top face of the transformer tank (lit) */
+.obj-substation .sub-top {
+  position: absolute;
+  left: -9px; top: -9px;
+  width: 18px; height: 18px;
+  background:
+    linear-gradient(135deg, var(--obj-steel-lit), var(--obj-steel));
+  border: 0.5px solid var(--obj-edge);
+  transform: translateZ(11px);
+}
+/* corrugation lines on the tank top */
+.obj-substation .sub-top::after {
+  content: '';
+  position: absolute;
+  inset: 2px;
+  background: repeating-linear-gradient(90deg,
+      transparent 0 1.5px, oklch(0% 0 0 / 0.25) 1.5px 2px);
+  opacity: 0.6;
+}
+/* front skirt face — gives the transformer tank visible body height */
+.obj-substation .sub-front {
+  position: absolute;
+  left: -9px; top: -9px;
+  width: 18px; height: 11px;
+  transform-origin: bottom;
+  transform: rotateX(-90deg);
+  background:
+    linear-gradient(180deg, var(--obj-steel-lit), var(--obj-steel) 45%, var(--obj-shadow));
+  border: 0.5px solid var(--obj-shadow);
+  box-shadow: inset 0 -3px 5px oklch(0% 0 0 / 0.5);
+}
+/* radiator fin detail on the tank front */
+.obj-substation .sub-front::after {
+  content: '';
+  position: absolute;
+  left: 2px; right: 2px; top: 2px; bottom: 2px;
+  background: repeating-linear-gradient(90deg,
+      transparent 0 1.6px, oklch(0% 0 0 / 0.3) 1.6px 2.4px);
+  opacity: 0.55;
+}
+
+/* the three porcelain insulator stacks rising off the top */
+.obj-substation .sub-fins {
+  position: absolute;
+  left: -7px; top: -7px;
+  width: 14px; height: 6px;
+  transform: translateZ(11px);
+  transform-style: preserve-3d;
+  display: flex;
+  justify-content: space-between;
+}
+.obj-substation .fin {
+  position: relative;
+  width: 3px; height: 11px;
+  transform: translateY(-9px) rotateX(-90deg);
+  transform-origin: bottom;
+  background: repeating-linear-gradient(
+      var(--obj-edge) 0 1px,
+      color-mix(in oklab, var(--accent) 30%, var(--obj-steel)) 1px 2.4px);
+  border-radius: 1px 1px 0 0;
+}
+/* corona discharge cap glowing at each insulator tip */
+.obj-substation .fin::before {
+  content: '';
+  position: absolute;
+  left: 50%; top: -2px;
+  width: 4px; height: 4px;
+  border-radius: 50%;
+  transform: translateX(-50%);
+  background: radial-gradient(circle,
+      color-mix(in oklab, var(--accent) 90%, white) 0%,
+      color-mix(in oklab, var(--accent) 70%, transparent) 45%,
+      transparent 75%);
+  filter: blur(0.4px);
+  animation: arc-shimmer 1.3s ease-in-out infinite;
+  will-change: opacity, transform;
+}
+.obj-substation .fin:nth-child(2)::before { animation-delay: 0.42s; }
+.obj-substation .fin:nth-child(3)::before { animation-delay: 0.84s; }
+
+@keyframes arc-shimmer {
+  0%, 100% { opacity: 0.25; transform: translateX(-50%) scale(0.8); }
+  45%      { opacity: 1;    transform: translateX(-50%) scale(1.25); }
+  60%      { opacity: 0.5;  transform: translateX(-50%) scale(1); }
+}
+
+/* ============================================================
+   CAMERA — box body + protruding perspective lens barrel
+   ============================================================ */
+.obj-camera .cam-body { position: absolute; transform-style: preserve-3d; }
+
+/* the housing block — stands upright (un-tilts so the lens aims sideways) */
+.obj-camera .cam-housing {
+  position: absolute;
+  left: -8px; top: -12px;
+  width: 13px; height: 9px;
+  transform: rotateX(-90deg) translateZ(3px);
+  transform-origin: bottom;
+  transform-style: preserve-3d;
+  background: linear-gradient(160deg, var(--obj-steel-lit), var(--obj-steel) 60%, var(--obj-shadow));
+  border: 0.5px solid var(--obj-edge);
+  box-shadow: inset -2px -2px 4px oklch(0% 0 0 / 0.45);
+}
+/* mounting yoke/arm under the housing */
+.obj-camera .cam-mount {
+  position: absolute;
+  left: -1px; top: -3px;
+  width: 2px; height: 5px;
+  background: var(--obj-shadow);
+  transform: rotateX(-90deg);
+  transform-origin: top;
+}
+/* protruding lens barrel — true round opening via nested circles */
+.obj-camera .cam-lens {
+  position: absolute;
+  left: 4px; top: -10px;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  transform: rotateX(-90deg) translateZ(4px);
+  transform-style: preserve-3d;
+  background:
+    radial-gradient(circle at 38% 35%,
+      var(--obj-edge) 0%,
+      var(--obj-steel) 35%,
+      var(--obj-shadow) 70%);
+  border: 0.6px solid var(--obj-edge);
+  box-shadow: 0 0 0 1px oklch(0% 0 0 / 0.5);
+}
+/* glass pupil — catches an accent glint */
+.obj-camera .cam-lens::after {
+  content: '';
+  position: absolute;
+  left: 50%; top: 50%;
+  width: 2.4px; height: 2.4px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(circle at 35% 30%,
+      color-mix(in oklab, var(--accent) 85%, white),
+      color-mix(in oklab, var(--accent) 50%, black) 80%);
+  box-shadow: 0 0 3px color-mix(in oklab, var(--accent) 70%, transparent);
+}
+/* status LED on the housing corner */
+.obj-camera .cam-led {
+  position: absolute;
+  left: 3px; top: -11px;
+  width: 1.4px; height: 1.4px;
+  border-radius: 50%;
+  transform: rotateX(-90deg) translateZ(4px);
+  background: var(--accent);
+  box-shadow: 0 0 3px var(--accent);
+  animation: cam-led-blink 2.2s steps(1) infinite;
+}
+@keyframes cam-led-blink {
+  0%, 80%  { opacity: 1; }
+  85%,100% { opacity: 0.2; }
+}
+
+/* surveillance scan cone sweeping from the lens, lying on the world plane */
+.obj-camera .cam-scan {
+  position: absolute;
+  left: 7px; top: 0px;
+  width: 30px; height: 30px;
+  transform: var(--obj-tilt) translate(-2px, -15px);
+  transform-origin: 0 50%;
+  pointer-events: none;
+}
+.obj-camera .cam-scan::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 50%;
+  width: 26px; height: 26px;
+  transform-origin: 0 0;
+  transform: translateY(-50%) rotate(-20deg);
+  background: conic-gradient(from 0deg at 0 50%,
+      color-mix(in oklab, var(--accent) 35%, transparent) 0deg,
+      color-mix(in oklab, var(--accent) 6%, transparent) 16deg,
+      transparent 30deg);
+  clip-path: polygon(0 50%, 100% 8%, 100% 92%);
+  opacity: 0.5;
+  animation: scan-sweep 4.8s ease-in-out infinite;
+  will-change: transform;
+}
+@keyframes scan-sweep {
+  0%   { transform: translateY(-50%) rotate(-32deg); }
+  50%  { transform: translateY(-50%) rotate(28deg); }
+  100% { transform: translateY(-50%) rotate(-32deg); }
+}
+
+/* ============================================================
+   ALERT STATE — HAL-red glow + shake (shared)
+   ============================================================ */
+.obj-figure.alert { --accent: var(--hal-bright); --tint: var(--alert); }
+
+.obj-figure.alert .obj-stage {
+  animation: obj-shake 0.5s cubic-bezier(0.36, 0, 0.66, -0.4) infinite;
+  filter: drop-shadow(0 0 5px var(--hal))
+          drop-shadow(0 0 12px oklch(52% 0.18 28 / 0.55));
+}
+@keyframes obj-shake {
+  0%, 100% { transform: var(--obj-tilt) translateZ(2px); }
+  25%      { transform: var(--obj-tilt) translateZ(2px) translateX(0.9px) rotateZ(1.4deg); }
+  75%      { transform: var(--obj-tilt) translateZ(2px) translateX(-0.9px) rotateZ(-1.4deg); }
+}
+
+/* expanding red threat ring at the base */
+.obj-figure.alert .obj-base-ring {
+  border-color: var(--hal-bright);
+  background: radial-gradient(circle,
+      oklch(62% 0.22 28 / 0.30), transparent 70%);
+  animation: alert-ring 1.1s ease-out infinite;
+}
+@keyframes alert-ring {
+  0%   { opacity: 0.95; transform: var(--obj-tilt) scale(0.55); }
+  100% { opacity: 0;    transform: var(--obj-tilt) scale(1.7); }
+}
+
+.obj-figure.alert .obj-label { color: var(--alert); opacity: 1; }
+
+/* quarantine flavour — frozen + dimmed, distinct from active attack */
+.obj-figure.quarantined .obj-stage {
+  animation: none;
+  filter: grayscale(0.5) brightness(0.7)
+          drop-shadow(0 0 4px oklch(52% 0.18 28 / 0.5));
+}
+.obj-figure.quarantined .pump-cap-top,
+.obj-figure.quarantined .cam-scan::before,
+.obj-figure.quarantined .fin::before { animation-play-state: paused; }
+
+/* ============================================================
+   INSPECT PANEL — click-to-open card near the figure
+   ============================================================ */
+.inspect-panel {
+  position: absolute;
+  z-index: 50;
+  min-width: 138px;
+  background: oklch(10% 0.008 28 / 0.97);
+  border: 1px solid var(--border-hal);
+  border-top: 2px solid var(--hal);
+  padding: 7px 9px 8px;
+  font-family: var(--font-mono);
+  backdrop-filter: blur(7px);
+  box-shadow: 0 8px 24px oklch(0% 0 0 / 0.6), var(--hal-glow);
+  transform-origin: top left;
+  animation: inspect-in 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform, opacity;
+}
+@keyframes inspect-in {
+  from { opacity: 0; transform: scale(0.9) translateY(-3px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.inspect-panel::before {  /* connector notch pointing at the object */
+  content: '';
+  position: absolute;
+  left: -5px; top: 9px;
+  width: 9px; height: 9px;
+  background: oklch(10% 0.008 28 / 0.97);
+  border-left: 1px solid var(--border-hal);
+  border-bottom: 1px solid var(--border-hal);
+  transform: rotate(45deg);
+}
+
+.inspect-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 5px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 4px;
+}
+.inspect-id {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--hal);
+  letter-spacing: 0.06em;
+}
+.inspect-kind {
+  font-size: 6.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--text-muted);
+}
+.inspect-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 8.5px;
+  margin-bottom: 3px;
+}
+.inspect-row .k { color: var(--text-muted); letter-spacing: 0.06em; }
+.inspect-row .v { color: var(--text); }
+
+.inspect-badge {
+  display: inline-block;
+  margin-top: 3px;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.10em;
+  padding: 2px 7px;
+  border: 1px solid;
+  text-transform: uppercase;
+}
+.inspect-badge.s-NORMAL       { color: var(--ok);    border-color: oklch(55% 0.12 155 / 0.4); background: var(--ok-trace); }
+.inspect-badge.s-SUSPECT      { color: var(--amber); border-color: oklch(68% 0.15 68 / 0.4);  background: oklch(68% 0.15 68 / 0.10); }
+.inspect-badge.s-QUARANTINED  { color: var(--hal);   border-color: var(--border-hal);          background: var(--hal-trace); }
+.inspect-badge.s-UNDER_ATTACK { color: var(--alert); border-color: var(--border-alert);        background: var(--alert-trace); animation: pulse-badge 0.5s infinite; }
+
+.inspect-close {
+  position: absolute;
+  top: 4px; right: 5px;
+  width: 12px; height: 12px;
+  line-height: 11px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-muted);
+  cursor: pointer;
+  border: none;
+  background: none;
+  font-family: var(--font-mono);
+}
+.inspect-close:hover { color: var(--hal); }
+
+/* ============================================================
+   Reduced motion — kill loops, keep legibility
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  .pump-cap-top, .fin::before, .cam-scan::before, .cam-led,
+  .obj-base-ring, .obj-figure.alert .obj-stage,
+  .obj-figure.alert .obj-base-ring {
+    animation: none !important;
+  }
+}

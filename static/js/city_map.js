@@ -7,7 +7,9 @@ const CityMap = (() => {
   const SVG_NS = 'http://www.w3.org/2000/svg';
   let svg = null;
   let tooltip = null;
-  let nodeElements = {};   // node_id -> { g, circle (glow), label }
+  let objLayer = null;     // HTML overlay for 3D object figures
+  let figures = {};        // node_id -> { root, label, reading, type, status }
+  let openInspectId = null;
   let nodeData = {};
   let nodeStatus = {};
 
@@ -77,6 +79,9 @@ const CityMap = (() => {
     _drawNodes();
     _drawScanBeam();
     _drawVignette();
+
+    // HTML 3D object overlay sits on top of the finished SVG topology
+    _mountObjectFigures(containerId);
   }
 
   // -----------------------------------------------------------------------
@@ -195,45 +200,6 @@ const CityMap = (() => {
   }
 
   // -----------------------------------------------------------------------
-  // Icon factories
-  // -----------------------------------------------------------------------
-  function _makeWaterIcon(pos, color) {
-    const g = el('g');
-    g.appendChild(el('line', {x1:pos.x-2.2,y1:pos.y, x2:pos.x+2.2,y2:pos.y, stroke:color,'stroke-width':0.65}));
-    g.appendChild(el('line', {x1:pos.x,y1:pos.y-2.2, x2:pos.x,y2:pos.y+2.2, stroke:color,'stroke-width':0.65}));
-    g.appendChild(el('circle', {cx:pos.x,cy:pos.y, r:0.85, fill:color}));
-    return g;
-  }
-
-  function _makePowerIcon(pos, color) {
-    const g = el('g');
-    g.appendChild(el('rect', {x:pos.x-1.7,y:pos.y-1.7, width:3.4,height:3.4,
-      fill:'none', stroke:color,'stroke-width':0.45}));
-    g.appendChild(el('line', {x1:pos.x-1.2,y1:pos.y-1.2, x2:pos.x+1.2,y2:pos.y+1.2,
-      stroke:color,'stroke-width':0.3,opacity:'0.50'}));
-    g.appendChild(el('line', {x1:pos.x+1.2,y1:pos.y-1.2, x2:pos.x-1.2,y2:pos.y+1.2,
-      stroke:color,'stroke-width':0.3,opacity:'0.50'}));
-    g.appendChild(el('circle', {cx:pos.x,cy:pos.y, r:0.65, fill:color}));
-    return g;
-  }
-
-  function _makeCameraIcon(pos, color) {
-    const g = el('g');
-    // Body
-    g.appendChild(el('rect', {x:pos.x-2.3,y:pos.y-1.4, width:4.0,height:2.8,
-      rx:'0.25', fill:color, opacity:'0.88'}));
-    // Lens ring
-    g.appendChild(el('circle', {cx:pos.x-0.4,cy:pos.y, r:1.05,
-      fill:'none', stroke:'rgba(0,0,0,0.55)','stroke-width':0.4}));
-    // Lens glass
-    g.appendChild(el('circle', {cx:pos.x-0.4,cy:pos.y, r:0.45, fill:color, opacity:'0.65'}));
-    // Viewfinder bump
-    g.appendChild(el('rect', {x:pos.x+1.3,y:pos.y-2.1, width:1.0,height:0.85,
-      rx:'0.15', fill:color, opacity:'0.65'}));
-    return g;
-  }
-
-  // -----------------------------------------------------------------------
   // Intra-zone link lines
   // -----------------------------------------------------------------------
   function _drawIntraLinks(positions, color) {
@@ -248,57 +214,13 @@ const CityMap = (() => {
   }
 
   // -----------------------------------------------------------------------
-  // Node rendering
+  // Node rendering — SVG draws ONLY the pipe/link topology now.
+  // The 3D object figures live in an HTML overlay (see _mountObjectFigures).
   // -----------------------------------------------------------------------
   function _drawNodes() {
     _drawIntraLinks(WATER_POS,   COL.water);
     _drawIntraLinks(POWER_POS,   COL.power);
     _drawIntraLinks(TRAFFIC_POS, COL.traffic);
-
-    const allPositions = { ...WATER_POS, ...POWER_POS, ...TRAFFIC_POS };
-
-    for (const [nid, pos] of Object.entries(allPositions)) {
-      const subsystem = WATER_NODES.includes(nid) ? 'water'
-                      : POWER_NODES.includes(nid) ? 'power' : 'traffic';
-      const color = COL[subsystem];
-
-      const g = el('g', { class: `node-group node-${nid}`, cursor: 'pointer' });
-
-      // Glow circle — status indicator behind icon
-      const glow = el('circle', {
-        cx: pos.x, cy: pos.y, r: '2.6',
-        fill: color, opacity: '0.14', stroke: 'none',
-        class: 'node-circle',
-        'data-node': nid,
-        'data-subsystem': subsystem,
-      });
-      glow.style.animation = 'pulse-normal 2s infinite';
-      g.appendChild(glow);
-
-      // Typed icon
-      const icon = subsystem === 'water' ? _makeWaterIcon(pos, color)
-                 : subsystem === 'power' ? _makePowerIcon(pos, color)
-                 : _makeCameraIcon(pos, color);
-      g.appendChild(icon);
-
-      // Label
-      const label = el('text', {
-        x: pos.x, y: pos.y + 4.2,
-        'text-anchor': 'middle',
-        fill: color, 'font-size': '1.75',
-        'font-family': "'JetBrains Mono', monospace",
-        opacity: '0.60',
-      });
-      label.textContent = nid;
-      g.appendChild(label);
-
-      g.addEventListener('mouseenter', (e) => _showTooltip(e, nid));
-      g.addEventListener('mousemove',  (e) => _moveTooltip(e));
-      g.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; });
-
-      svg.appendChild(g);
-      nodeElements[nid] = { g, circle: glow, label };
-    }
   }
 
   // -----------------------------------------------------------------------
@@ -328,72 +250,179 @@ const CityMap = (() => {
   }
 
   // -----------------------------------------------------------------------
-  // Node state application
+  // 3D Object Figures — HTML overlay (CSS preserve-3d)
   // -----------------------------------------------------------------------
-  function _applyNodeState(nid, status) {
-    const els = nodeElements[nid];
-    if (!els) return;
-    const { circle: glow } = els;
-    const subsystem = nid.startsWith('SYN') ? 'traffic'
-                    : POWER_NODES.includes(nid) ? 'power' : 'water';
-    const defaultFill = COL[subsystem];
+  const ALERT_STATES = new Set(['UNDER_ATTACK', 'SUSPECT']);
 
-    glow.style.animation = '';
+  // Inner markup per object type. Built once, then never re-rendered.
+  const FIGURE_MARKUP = {
+    pump: `
+      <div class="obj-shadow-disc"></div>
+      <div class="obj-base-ring"></div>
+      <div class="obj-stage">
+        <div class="pump-cap-bottom"></div>
+      </div>
+      <div class="pump-billboard">
+        <div class="pump-barrel"></div>
+        <div class="pump-band"></div>
+      </div>
+      <div class="obj-stage">
+        <div class="pump-cap-top"></div>
+      </div>`,
+    substation: `
+      <div class="obj-shadow-disc"></div>
+      <div class="obj-base-ring"></div>
+      <div class="obj-stage">
+        <div class="sub-body">
+          <div class="sub-front"></div>
+          <div class="sub-top"></div>
+          <div class="sub-fins">
+            <div class="fin"></div><div class="fin"></div><div class="fin"></div>
+          </div>
+        </div>
+      </div>`,
+    camera: `
+      <div class="obj-shadow-disc"></div>
+      <div class="obj-base-ring"></div>
+      <div class="cam-scan"></div>
+      <div class="obj-stage">
+        <div class="cam-body">
+          <div class="cam-mount"></div>
+          <div class="cam-housing"></div>
+          <div class="cam-lens"></div>
+          <div class="cam-led"></div>
+        </div>
+      </div>`,
+  };
 
-    switch (status) {
-      case 'NORMAL':
-        glow.setAttribute('r', '2.6');
-        glow.setAttribute('fill', defaultFill);
-        glow.setAttribute('opacity', '0.14');
-        glow.style.animation = 'pulse-normal 2s infinite';
-        _removeXOverlay(nid);
-        break;
-      case 'SUSPECT':
-        glow.setAttribute('r', '3.4');
-        glow.setAttribute('fill', COL.amber);
-        glow.setAttribute('opacity', '0.38');
-        glow.style.animation = 'pulse-suspect 0.8s infinite';
-        _removeXOverlay(nid);
-        break;
-      case 'QUARANTINED':
-        glow.setAttribute('r', '3.4');
-        glow.setAttribute('fill', COL.hal);
-        glow.setAttribute('opacity', '0.44');
-        glow.style.animation = 'none';
-        _addXOverlay(nid, els);
-        break;
-      case 'UNDER_ATTACK':
-        glow.setAttribute('r', '4.0');
-        glow.setAttribute('fill', COL.alert);
-        glow.setAttribute('opacity', '0.52');
-        glow.style.animation = 'blink-attack 0.3s infinite';
-        _removeXOverlay(nid);
-        break;
+  // Geometry type drives both the CSS class (obj-{type}) and the markup.
+  function _typeOf(nid) {
+    if (WATER_NODES.includes(nid))   return 'pump';
+    if (POWER_NODES.includes(nid))   return 'substation';
+    return 'camera';
+  }
+
+  function _mountObjectFigures(containerId) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    if (getComputedStyle(container).position === 'static') {
+      container.style.position = 'relative';
+    }
+
+    objLayer = document.createElement('div');
+    objLayer.className = 'city-object-layer';
+    container.appendChild(objLayer);
+
+    const allPositions = { ...WATER_POS, ...POWER_POS, ...TRAFFIC_POS };
+    for (const [nid, pos] of Object.entries(allPositions)) {
+      const type = _typeOf(nid);
+      const fig = document.createElement('div');
+      fig.className = `obj-figure obj-${type}`;
+      // viewBox is 100 × 90 → percentage of the overlay box
+      fig.style.left = (pos.x / 100 * 100) + '%';
+      fig.style.top  = (pos.y / 90  * 100) + '%';
+      fig.dataset.node = nid;
+
+      const label = document.createElement('div');
+      label.className = 'obj-label';
+      label.textContent = nid;
+      const reading = document.createElement('span');
+      reading.className = 'obj-reading';
+      reading.textContent = '—';
+      label.appendChild(reading);
+
+      fig.innerHTML = FIGURE_MARKUP[type];
+      fig.appendChild(label);
+
+      fig.addEventListener('click', (e) => { e.stopPropagation(); _toggleInspect(nid); });
+      fig.addEventListener('mouseenter', (e) => _showTooltip(e, nid));
+      fig.addEventListener('mousemove',  (e) => _moveTooltip(e));
+      fig.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; });
+
+      objLayer.appendChild(fig);
+      figures[nid] = { root: fig, label, reading, type, status: 'NORMAL' };
+    }
+
+    // Dismiss inspect panel on outside click
+    document.addEventListener('click', () => { if (openInspectId) _closeInspect(); });
+  }
+
+  // -----------------------------------------------------------------------
+  // Public: incremental figure update (no re-render)
+  // -----------------------------------------------------------------------
+  function updateFigure(nodeId, status, reading) {
+    const f = figures[nodeId];
+    if (!f) return;
+
+    if (reading !== undefined && reading !== null && reading !== '') {
+      if (f.reading.textContent !== reading) f.reading.textContent = reading;
+    }
+
+    if (f.status !== status) {
+      f.status = status;
+      _applyFigureState(f, status);
+      if (openInspectId === nodeId) _renderInspect(nodeId);  // live-refresh open card
     }
   }
 
-  function _addXOverlay(nid, els) {
-    if (document.getElementById(`x-${nid}`)) return;
-    const pos = { ...WATER_POS, ...POWER_POS, ...TRAFFIC_POS }[nid];
-    if (!pos) return;
-    const xg = el('g', { id: `x-${nid}` });
-    xg.appendChild(el('line', {x1:pos.x-1.8,y1:pos.y-1.8, x2:pos.x+1.8,y2:pos.y+1.8,
-      stroke:'white','stroke-width':0.5, opacity:'0.7'}));
-    xg.appendChild(el('line', {x1:pos.x+1.8,y1:pos.y-1.8, x2:pos.x-1.8,y2:pos.y+1.8,
-      stroke:'white','stroke-width':0.5, opacity:'0.7'}));
-    const badge = el('text', {
-      x: pos.x, y: pos.y-3.2, 'text-anchor': 'middle',
-      fill: COL.hal, 'font-size': '1.8',
-      'font-family': "'JetBrains Mono', monospace", 'font-weight': '700',
-    });
-    badge.textContent = 'ISOLATED';
-    xg.appendChild(badge);
-    svg.appendChild(xg);
+  function _applyFigureState(f, status) {
+    const cl = f.root.classList;
+    cl.toggle('alert', ALERT_STATES.has(status));
+    cl.toggle('quarantined', status === 'QUARANTINED');
   }
 
-  function _removeXOverlay(nid) {
-    const x = document.getElementById(`x-${nid}`);
-    if (x) x.remove();
+  // -----------------------------------------------------------------------
+  // Inspect panel — click-to-open detail card near the figure
+  // -----------------------------------------------------------------------
+  function _readingFor(nid) {
+    const d = nodeData[nid] || {};
+    if (d.value !== undefined)        return `${Number(d.value).toFixed(2)} ${d.unit || 'm'}`;
+    if (d.vm_pu !== undefined)        return `${Number(d.vm_pu).toFixed(4)} pu`;
+    if (d.vehicle_flow !== undefined) return `${d.vehicle_flow} veh/min`;
+    return '—';
+  }
+
+  function _toggleInspect(nid) {
+    if (openInspectId === nid) { _closeInspect(); return; }
+    _renderInspect(nid);
+  }
+
+  function _closeInspect() {
+    const p = objLayer && objLayer.querySelector('.inspect-panel');
+    if (p) p.remove();
+    openInspectId = null;
+  }
+
+  function _renderInspect(nid) {
+    _closeInspect();
+    const f = figures[nid];
+    if (!f || !objLayer) return;
+    const d = nodeData[nid] || {};
+    const status = f.status || d.status || 'NORMAL';
+    const kindLabel = { pump: 'Pump / Junction', substation: 'Substation', camera: 'CCTV Node' }[f.type];
+    const metricLabel = f.type === 'pump' ? 'Pressure'
+                      : f.type === 'substation' ? 'Voltage' : 'Detections';
+
+    const panel = document.createElement('div');
+    panel.className = 'inspect-panel';
+    panel.style.left = f.root.style.left;
+    panel.style.top  = f.root.style.top;
+    panel.style.transform = 'translate(18px, -8px)';
+    panel.addEventListener('click', (e) => e.stopPropagation());
+    panel.innerHTML = `
+      <button class="inspect-close" aria-label="Close">×</button>
+      <div class="inspect-head">
+        <span class="inspect-id">${nid}</span>
+        <span class="inspect-kind">${kindLabel}</span>
+      </div>
+      <div class="inspect-row"><span class="k">${metricLabel}</span><span class="v">${_readingFor(nid)}</span></div>
+      ${d.subsystem ? `<div class="inspect-row"><span class="k">Subsystem</span><span class="v">${d.subsystem}</span></div>` : ''}
+      ${d.source ? `<div class="inspect-row"><span class="k">Source</span><span class="v">${d.source}</span></div>` : ''}
+      <span class="inspect-badge s-${status}">${status.replace('_', ' ')}</span>
+    `;
+    panel.querySelector('.inspect-close').addEventListener('click', (e) => { e.stopPropagation(); _closeInspect(); });
+    objLayer.appendChild(panel);
+    openInspectId = nid;
   }
 
   // -----------------------------------------------------------------------
@@ -431,10 +460,9 @@ const CityMap = (() => {
     for (const [nid, nd] of Object.entries(all)) {
       nodeData[nid] = nd;
       const status = nd.status || 'NORMAL';
-      if (nodeStatus[nid] !== status) {
-        nodeStatus[nid] = status;
-        _applyNodeState(nid, status);
-      }
+      // Incremental: updateFigure only touches the DOM when something changed.
+      updateFigure(nid, status, _readingFor(nid));
+      nodeStatus[nid] = status;
     }
   }
 
@@ -463,5 +491,5 @@ const CityMap = (() => {
     }
   }
 
-  return { init, update, animateAttack };
+  return { init, update, updateFigure, animateAttack };
 })();
