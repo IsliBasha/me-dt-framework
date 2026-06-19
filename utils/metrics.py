@@ -70,6 +70,11 @@ def record_class_alert(threat_class: str):
     _alerts_by_class[threat_class] = _alerts_by_class.get(threat_class, 0) + 1
 
 
+def set_clean_period_end(tick: int) -> None:
+    global _clean_period_end
+    _clean_period_end = tick
+
+
 def get_summary() -> Dict[str, Any]:
     mean_lat = sum(_latencies_ms) / len(_latencies_ms) if _latencies_ms else 0.0
     total_me = sum(_tp_counts.get("ME-DT", 0) for _ in [1])
@@ -88,6 +93,20 @@ def get_summary() -> Dict[str, Any]:
                 row[f"{d}_ttd"] = None
         rows.append(row)
 
+    # Per-detector confusion matrix (Ticket 8)
+    # TN = clean_period_end - FP (clean ticks where no alert fired)
+    # FN = injections where detector never fired within window
+    cm: Dict[str, Dict[str, int]] = {}
+    for det in _DETECTORS:
+        tp = _tp_counts.get(det, 0)
+        fp = _fp_counts.get(det, 0)
+        tn = max(0, _clean_period_end - fp)
+        fn = sum(
+            1 for det_map in _detection_ticks.values()
+            if det_map.get(det) is None
+        )
+        cm[det] = {"TP": tp, "FP": fp, "TN": tn, "FN": fn}
+
     return {
         "token_usage": {
             "total_input_tokens":  _total_input_tokens,
@@ -95,6 +114,7 @@ def get_summary() -> Dict[str, Any]:
             "total_cost_usd":      round(_total_cost_usd, 6),
             "by_mode":             {m: dict(v) for m, v in _tokens_by_mode.items()},
         },
+        "confusion_matrix": cm,
         "comparison_table": rows,
         "me_dt": {
             "tp_count":       _tp_counts.get("ME-DT", 0),
@@ -147,7 +167,7 @@ def export_report(tick: int):
 
 
 def reset():
-    global _total_input_tokens, _total_output_tokens, _total_cost_usd
+    global _total_input_tokens, _total_output_tokens, _total_cost_usd, _clean_period_end
     _injection_ticks.clear()
     _detection_ticks.clear()
     _fp_counts.update({"ME-DT": 0, "CUSUM": 0, "ISOFOREST": 0})
@@ -158,3 +178,4 @@ def reset():
     _total_output_tokens = 0
     _total_cost_usd      = 0.0
     _tokens_by_mode.clear()
+    _clean_period_end    = 20
