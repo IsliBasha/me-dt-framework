@@ -5,11 +5,12 @@ Mode C (zero-day hypothesis). Never blocks the tick loop.
 """
 
 import asyncio
+import hashlib
 import json
 import time
 from collections import deque
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import config
 import utils.audit_log as audit_log
@@ -78,6 +79,54 @@ def reset_transcripts() -> None:
     global _transcript_counter
     _transcript_counter = 0
     _transcript_log.clear()
+
+
+# ---------------------------------------------------------------------------
+# Mode A Response Cache (Ticket 5)
+# key = hash(violations + anomaly summary + top water values)
+# value = (ThreatAssessment, stored_tick)
+# ---------------------------------------------------------------------------
+
+_mode_a_cache: Dict[str, Tuple[Any, int]] = {}
+_cache_hits:   int = 0
+_cache_misses: int = 0
+
+
+def _cache_key(violations: List[Dict], anomaly_sidecar: List, state_snapshot: Dict) -> str:
+    water = state_snapshot.get("water", {})
+    water_vals = sorted(
+        [(nid, float(nd.get("value") or nd.get("pressure") or 0))
+         for nid, nd in water.items()
+         if nd],
+        key=lambda x: abs(x[1]),
+        reverse=True,
+    )[:8]
+    payload = json.dumps(
+        {
+            "violations": [{"rule_id": v.get("rule_id"), "severity": v.get("severity")} for v in violations],
+            "water": water_vals,
+            "anomaly_count": len(anomaly_sidecar),
+            "anomaly_nodes": [getattr(a, "node_id", "") for a in anomaly_sidecar[:5]],
+        },
+        sort_keys=True,
+    )
+    return hashlib.sha256(payload.encode()).hexdigest()[:16]
+
+
+def get_cache_stats() -> Dict[str, Any]:
+    total = _cache_hits + _cache_misses
+    return {
+        "hits":     _cache_hits,
+        "misses":   _cache_misses,
+        "hit_rate": round(_cache_hits / total, 4) if total else 0.0,
+    }
+
+
+def reset_cache() -> None:
+    global _cache_hits, _cache_misses
+    _mode_a_cache.clear()
+    _cache_hits   = 0
+    _cache_misses = 0
 
 
 # ---------------------------------------------------------------------------
@@ -214,6 +263,21 @@ async def run_mode_a(
     vulnerability_atlas: List,
     tick: int,
 ) -> Optional[ThreatAssessment]:
+    global _cache_hits, _cache_misses
+
+    # Cache lookup (mock path also benefits — same determinism)
+    if config.MODE_A_CACHE_ENABLED:
+        key = _cache_key(violations, anomaly_sidecar, state_snapshot)
+        cached = _mode_a_cache.get(key)
+        if cached is not None:
+            result, stored_tick = cached
+            if (tick - stored_tick) < config.MODE_A_CACHE_TTL_TICKS:
+                _cache_hits += 1
+                return result
+            else:
+                del _mode_a_cache[key]
+        _cache_misses += 1
+
     client = get_client()
     ctx = build_context(state_snapshot, violations, anomaly_sidecar, vulnerability_atlas)
     prompt = ctx + "\nAnalyze the current state."
@@ -224,6 +288,9 @@ async def run_mode_a(
         latency_ms = (time.perf_counter() - t0) * 1000
         _append_transcript("A", tick, prompt, "[DEMO MODE — no API key]",
                            _ta_to_dict(result), latency_ms)
+        if config.MODE_A_CACHE_ENABLED:
+            key = _cache_key(violations, anomaly_sidecar, state_snapshot)
+            _mode_a_cache[key] = (result, tick)
         return result
 
     raw = ""
@@ -258,6 +325,9 @@ async def run_mode_a(
             api_latency_ms=round(latency_ms, 1),
         )
         _append_transcript("A", tick, prompt, raw, _ta_to_dict(result), latency_ms)
+        if config.MODE_A_CACHE_ENABLED:
+            key = _cache_key(violations, anomaly_sidecar, state_snapshot)
+            _mode_a_cache[key] = (result, tick)
         return result
     except json.JSONDecodeError as e:
         latency_ms = (time.perf_counter() - t0) * 1000

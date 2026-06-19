@@ -34,6 +34,10 @@ ANTHROPIC_API_KEY           = os.environ.get("ANTHROPIC_API_KEY", "")
 ANTHROPIC_PRICE_PER_MTOK_INPUT  = 3.0
 ANTHROPIC_PRICE_PER_MTOK_OUTPUT = 15.0
 
+# Mode A response cache (Ticket 5)
+MODE_A_CACHE_TTL_TICKS = 5
+MODE_A_CACHE_ENABLED   = True
+
 NET3_URL = (
     "https://raw.githubusercontent.com/USEPA/WNTR/main/wntr/tests/networks/Net3.inp"
 )
