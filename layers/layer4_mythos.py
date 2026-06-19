@@ -79,6 +79,8 @@ def reset_transcripts() -> None:
     global _transcript_counter
     _transcript_counter = 0
     _transcript_log.clear()
+    # Also reset the cache so transcript tests run with a clean slate
+    reset_cache()
 
 
 # ---------------------------------------------------------------------------
