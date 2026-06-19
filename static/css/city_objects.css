@@ -59,7 +59,9 @@
               filter 0.3s ease;
   will-change: transform;
 }
-.obj-figure:hover .obj-stage { transform: var(--obj-tilt) translateZ(6px); }
+.obj-figure:hover .obj-stage         { transform: var(--obj-tilt) translateZ(6px); }
+/* Billboard is un-tilted so translateY(-3px) approximates the same visual lift */
+.obj-figure:hover .pump-billboard     { transform: translateY(-3px); }
 
 /* Contact shadow on the world plane (lies flat, no tilt of its own) */
 .obj-shadow-disc {
@@ -119,11 +121,14 @@
    PUMP — vertical CSS cylinder with rotating cap
    ============================================================ */
 /* Upright billboard holding the cylinder barrel — faces the camera, does NOT
-   inherit the ground tilt, so the body reads as a true vertical cylinder. */
+   inherit the ground tilt, so the body reads as a true vertical cylinder.
+   Transitions + will-change allow hover lift and alert shake to apply here too. */
 .obj-pump .pump-billboard {
   position: absolute;
   left: 0; top: 0;
   width: 0; height: 0;
+  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), filter 0.3s ease;
+  will-change: transform;
 }
 /* Barrel: vertical body. Horizontal gradient fakes the rounded-cylinder
    shading; the cap ellipses (in the tilted plane) close it off top & bottom. */
@@ -169,7 +174,6 @@
   border: 0.5px solid var(--obj-edge);
 }
 /* top stage lifts the spinning cap to the barrel top (in the tilted plane) */
-.obj-pump .obj-stage:last-of-type { transform: var(--obj-tilt) translateZ(0); }
 .obj-pump .pump-cap-top {
   position: absolute;
   left: -8px; top: -25px;
@@ -415,10 +419,21 @@
   filter: drop-shadow(0 0 5px var(--hal))
           drop-shadow(0 0 12px oklch(52% 0.18 28 / 0.55));
 }
+/* Billboard has no tilt, so shake omits rotateX — only X drift + roll to match stages */
+.obj-figure.alert .pump-billboard {
+  animation: pump-barrel-shake 0.5s cubic-bezier(0.36, 0, 0.66, -0.4) infinite;
+  filter: drop-shadow(0 0 5px var(--hal))
+          drop-shadow(0 0 12px oklch(52% 0.18 28 / 0.55));
+}
 @keyframes obj-shake {
   0%, 100% { transform: var(--obj-tilt) translateZ(2px); }
   25%      { transform: var(--obj-tilt) translateZ(2px) translateX(0.9px) rotateZ(1.4deg); }
   75%      { transform: var(--obj-tilt) translateZ(2px) translateX(-0.9px) rotateZ(-1.4deg); }
+}
+@keyframes pump-barrel-shake {
+  0%, 100% { transform: none; }
+  25%      { transform: translateX(0.9px) rotateZ(1.4deg); }
+  75%      { transform: translateX(-0.9px) rotateZ(-1.4deg); }
 }
 
 /* expanding red threat ring at the base */
@@ -546,6 +561,7 @@
 @media (prefers-reduced-motion: reduce) {
   .pump-cap-top, .fin::before, .cam-scan::before, .cam-led,
   .obj-base-ring, .obj-figure.alert .obj-stage,
+  .obj-figure.alert .pump-billboard,
   .obj-figure.alert .obj-base-ring {
     animation: none !important;
   }
