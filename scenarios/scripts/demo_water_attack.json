@@ -1,0 +1,5 @@
+[
+  {"at_tick": 10, "scenario": "water_hammer", "comment": "Trigger pressure surge"},
+  {"at_tick": 20, "scenario": "false_data_injection", "comment": "Inject false sensor readings"},
+  {"at_tick": 35, "scenario": "actuator_hijack", "comment": "Override pump actuator"}
+]
