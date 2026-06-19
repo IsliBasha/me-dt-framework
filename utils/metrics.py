@@ -8,6 +8,7 @@ import os
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
+import config
 from models.attack_scenarios import SCENARIO_DEFINITIONS
 
 _DETECTORS = ["ME-DT", "CUSUM", "ISOFOREST"]
@@ -20,6 +21,12 @@ _tp_counts:       Dict[str, int] = {"ME-DT": 0, "CUSUM": 0, "ISOFOREST": 0}
 _latencies_ms:    List[float]    = []
 _clean_period_end: int = 20
 _alerts_by_class: Dict[str, int] = {}
+
+# Token & cost tracking (Ticket 4)
+_total_input_tokens:  int   = 0
+_total_output_tokens: int   = 0
+_total_cost_usd:      float = 0.0
+_tokens_by_mode: Dict[str, Dict[str, int]] = {}
 
 
 def record_injection(scenario: str, tick: int):
@@ -46,6 +53,19 @@ def record_latency(latency_ms: float):
     _latencies_ms.append(latency_ms)
 
 
+def record_token_usage(mode: str, *, in_tokens: int, out_tokens: int) -> None:
+    global _total_input_tokens, _total_output_tokens, _total_cost_usd
+    _total_input_tokens  += in_tokens
+    _total_output_tokens += out_tokens
+    _total_cost_usd += (
+        in_tokens  * config.ANTHROPIC_PRICE_PER_MTOK_INPUT  / 1_000_000
+        + out_tokens * config.ANTHROPIC_PRICE_PER_MTOK_OUTPUT / 1_000_000
+    )
+    bucket = _tokens_by_mode.setdefault(mode, {"input_tokens": 0, "output_tokens": 0})
+    bucket["input_tokens"]  += in_tokens
+    bucket["output_tokens"] += out_tokens
+
+
 def record_class_alert(threat_class: str):
     _alerts_by_class[threat_class] = _alerts_by_class.get(threat_class, 0) + 1
 
@@ -69,6 +89,12 @@ def get_summary() -> Dict[str, Any]:
         rows.append(row)
 
     return {
+        "token_usage": {
+            "total_input_tokens":  _total_input_tokens,
+            "total_output_tokens": _total_output_tokens,
+            "total_cost_usd":      round(_total_cost_usd, 6),
+            "by_mode":             {m: dict(v) for m, v in _tokens_by_mode.items()},
+        },
         "comparison_table": rows,
         "me_dt": {
             "tp_count":       _tp_counts.get("ME-DT", 0),
@@ -121,9 +147,14 @@ def export_report(tick: int):
 
 
 def reset():
+    global _total_input_tokens, _total_output_tokens, _total_cost_usd
     _injection_ticks.clear()
     _detection_ticks.clear()
     _fp_counts.update({"ME-DT": 0, "CUSUM": 0, "ISOFOREST": 0})
     _tp_counts.update({"ME-DT": 0, "CUSUM": 0, "ISOFOREST": 0})
     _latencies_ms.clear()
     _alerts_by_class.clear()
+    _total_input_tokens  = 0
+    _total_output_tokens = 0
+    _total_cost_usd      = 0.0
+    _tokens_by_mode.clear()

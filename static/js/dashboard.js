@@ -124,6 +124,12 @@ const Dashboard = (() => {
     _setText('metric-fp',      fpRate);
     _setText('metric-alerts',  medt.tp_count ?? 0);
 
+    // Token & cost gauges (Ticket 4)
+    const tok = metrics.token_usage || {};
+    const totalTok = (tok.total_input_tokens || 0) + (tok.total_output_tokens || 0);
+    _setText('metric-cost',   '$' + (tok.total_cost_usd || 0).toFixed(3));
+    _setText('metric-tokens', totalTok.toLocaleString());
+
     // Baseline row counts
     _setText('bl-cusum-alerts',     metrics.cusum?.alerts_count ?? 0);
     _setText('bl-isoforest-alerts', metrics.isoforest?.alerts_count ?? 0);
