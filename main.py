@@ -20,7 +20,10 @@ import config
 from layers.layer1_physical import init_water_network, init_power_network, run_tick
 from layers.layer2_ingestion import process_batch
 from layers.layer3_twin import DigitalTwin
-from layers.layer4_mythos import run_mode_a, run_mode_b, run_mode_c
+from layers.layer4_mythos import (
+    run_mode_a, run_mode_b, run_mode_c,
+    get_recent_transcripts, reset_transcripts,
+)
 from layers.layer5_response import ResponseEngine
 from layers.approval_queue import ApprovalQueue
 from baselines import cusum_detector, isolation_forest
@@ -180,6 +183,7 @@ async def reset_sim():
     cusum_detector.reset_all()
     isolation_forest.reset()
     metrics.reset()
+    reset_transcripts()
     return {"status": "reset"}
 
 
@@ -222,6 +226,11 @@ async def reject_action(request: Request):
         return JSONResponse({"error": f"action '{action_id}' not found"}, status_code=404)
     except ValueError as e:
         return JSONResponse({"error": str(e)}, status_code=409)
+
+
+@app.get("/api/transcripts")
+async def get_transcripts(n: int = 20):
+    return get_recent_transcripts(min(n, 50))
 
 
 @app.post("/api/speed")
