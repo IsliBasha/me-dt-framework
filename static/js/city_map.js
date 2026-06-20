@@ -63,7 +63,7 @@ const CityMap = (() => {
 
     svg = el('svg', {
       viewBox: '0 0 100 90',
-      preserveAspectRatio: 'xMidYMid meet',
+      preserveAspectRatio: 'none',
       id: 'city-map',
       style: 'width:100%;height:100%;',
     });

@@ -23,9 +23,7 @@
    ============================================================ */
 .city-object-layer {
   position: absolute;
-  /* small top inset gives the tall top-row substations headroom so their
-     insulators never clip the map frame; ~3% drift vs the decorative pipes. */
-  inset: 12px 0 -12px 0;
+  inset: 0;
   pointer-events: none;        /* figures opt back in */
   z-index: 3;                  /* above SVG topology, below tooltip */
   overflow: visible;
