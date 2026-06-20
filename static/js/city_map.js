@@ -18,17 +18,19 @@ const CityMap = (() => {
   const TRAFFIC_NODES = ['SYN-T01','SYN-T02','SYN-T03','SYN-T04','SYN-T05','SYN-T06'];
 
   const WATER_POS = {
-    '10':  {x:8,  y:12}, '15': {x:16, y:22}, '20': {x:8,  y:32},
-    '35':  {x:18, y:38}, '40': {x:8,  y:48}, '50': {x:18, y:55},
-    '115': {x:28, y:28}, '117':{x:28, y:42},
+    '10':  {x:7,  y:18}, '115':{x:20, y:22},
+    '15':  {x:12, y:32}, '20': {x:7,  y:42},
+    '117': {x:20, y:48}, '35': {x:12, y:56},
+    '40':  {x:7,  y:64}, '50': {x:18, y:70},
   };
   const POWER_POS = {
-    '0':  {x:58, y:10}, '4': {x:66, y:18}, '8':  {x:74, y:26},
-    '12': {x:66, y:34}, '18':{x:74, y:10}, '32': {x:80, y:42},
+    '0':  {x:71, y:18}, '18': {x:84, y:14},
+    '4':  {x:78, y:30}, '8':  {x:90, y:42},
+    '12': {x:74, y:54}, '32': {x:86, y:66},
   };
   const TRAFFIC_POS = {
-    'SYN-T01':{x:35, y:68}, 'SYN-T02':{x:46, y:72}, 'SYN-T03':{x:57, y:68},
-    'SYN-T04':{x:35, y:78}, 'SYN-T05':{x:46, y:82}, 'SYN-T06':{x:57, y:78},
+    'SYN-T01':{x:39, y:28}, 'SYN-T02':{x:48, y:32}, 'SYN-T03':{x:57, y:28},
+    'SYN-T04':{x:39, y:56}, 'SYN-T05':{x:48, y:60}, 'SYN-T06':{x:57, y:56},
   };
 
   // Colors — hex equivalents of OKLCH tokens
@@ -42,10 +44,11 @@ const CityMap = (() => {
     grid:    '#8a2820',
   };
 
+  // Three equal columns, 4-unit gaps between each — no border overlap
   const ZONES = {
-    water:   {x:3,  y:5,  w:32, h:55, color:COL.water,   label:'WATER ZONE'},
-    power:   {x:52, y:5,  w:33, h:55, color:COL.power,   label:'POWER ZONE'},
-    traffic: {x:28, y:62, w:36, h:22, color:COL.traffic,  label:'SURVEILLANCE / SYNTHETIC'},
+    water:   {x:2,  y:8, w:28, h:72, color:COL.water,   label:'WATER ZONE'},
+    traffic: {x:34, y:8, w:28, h:72, color:COL.traffic,  label:'SURVEILLANCE / SYNTHETIC'},
+    power:   {x:66, y:8, w:28, h:72, color:COL.power,   label:'POWER ZONE'},
   };
 
   function el(tag, attrs={}) {
@@ -175,14 +178,14 @@ const CityMap = (() => {
       svg.appendChild(cnt);
     }
 
-    // Synthetic warning
+    // Synthetic warning — inside traffic column, below the zone header
     const warn = el('text', {
-      x: 29, y: 67.2,
-      fill: COL.amber, 'font-size': 1.7,
+      x: 36, y: 15.5,
+      fill: COL.amber, 'font-size': 1.5,
       'font-family': "'JetBrains Mono', monospace",
-      'font-weight': '700', opacity: '0.7',
+      'font-weight': '700', opacity: '0.65',
     });
-    warn.textContent = 'SYNTHETIC DATA';
+    warn.textContent = '⚠ SYNTHETIC DATA';
     svg.appendChild(warn);
   }
 
@@ -194,9 +197,12 @@ const CityMap = (() => {
       x1,y1,x2,y2, stroke:'#7a3020', 'stroke-width':0.4,
       'stroke-dasharray':'1.5 1', opacity:'0.45',
     });
-    svg.appendChild(el('line', lineAttrs(36,35, 52,30)));
-    svg.appendChild(el('line', lineAttrs(68,60, 57,66)));
-    svg.appendChild(el('line', lineAttrs(18,60, 35,70)));
+    // Water right edge → Traffic left edge (cross-domain dependency)
+    svg.appendChild(el('line', lineAttrs(12,42, 34,44)));
+    // Traffic right edge → Power left edge
+    svg.appendChild(el('line', lineAttrs(62,44, 71,42)));
+    // Water top → Power top (direct cross-infrastructure link via gap above zones)
+    svg.appendChild(el('line', lineAttrs(12,32, 62,32)));
   }
 
   // -----------------------------------------------------------------------
