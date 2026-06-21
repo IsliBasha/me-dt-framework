@@ -377,5 +377,14 @@ class DigitalTwin:
     def set_node_attack(self, node_id: str):
         self.node_status[node_id] = "UNDER_ATTACK"
 
+    def set_node_suspect(self, node_id: str):
+        self.node_status[node_id] = "SUSPECT"
+
+    def clear_attack_node_marks(self, node_ids: List[str]):
+        """Clear UNDER_ATTACK/SUSPECT statuses set by attack wiring; preserves QUARANTINED."""
+        for nid in node_ids:
+            if self.node_status.get(nid) in ("UNDER_ATTACK", "SUSPECT"):
+                self.node_status.pop(nid, None)
+
     def clear_node_status(self, node_id: str):
         self.node_status.pop(node_id, None)

@@ -57,6 +57,7 @@ _tick:      int   = 0
 _speed:     float = 1.0
 _running:   bool  = True
 _attack_state: Dict[str, Any] = {}
+_attack_node_marks: Set[str] = set()   # nodes marked UNDER_ATTACK/SUSPECT this tick
 
 # Latest broadcast payload (for late-connecting clients)
 _last_payload: Dict = {}
@@ -171,13 +172,14 @@ async def get_report():
 @app.post("/api/reset")
 async def reset_sim():
     global _tick, _twin, _engine, _approval_queue, _vulnerability_atlas, _attack_state
-    global _pending_mode_a, _pending_mode_b, _pending_mode_c
+    global _pending_mode_a, _pending_mode_b, _pending_mode_c, _attack_node_marks
     _tick = 0
     _approval_queue = ApprovalQueue()
     _twin  = DigitalTwin()
     _engine = ResponseEngine(approval_queue=_approval_queue)
     _vulnerability_atlas = []
     _attack_state = {}
+    _attack_node_marks = set()
     _pending_mode_a = _pending_mode_b = _pending_mode_c = None
     scenario_library.reset_all()
     cusum_detector.reset_all()
@@ -257,6 +259,21 @@ async def simulation_loop():
 
         # Apply any scheduled attacks
         active_attacks = scenario_library.apply_attacks(_tick, _wn, _net, _attack_state)
+
+        # --- Attack → node status feedback ---
+        # Clear last tick's marks (preserves QUARANTINED nodes)
+        _twin.clear_attack_node_marks(list(_attack_node_marks))
+        _attack_node_marks.clear()
+        # Re-apply based on currently active attacks
+        for _atk_name, _atk_active in active_attacks.items():
+            if _atk_active:
+                _nodes, _status = scenario_library.get_affected_nodes(_atk_name, _tick)
+                for _nid in _nodes:
+                    if _status == "SUSPECT":
+                        _twin.set_node_suspect(_nid)
+                    else:
+                        _twin.set_node_attack(_nid)
+                    _attack_node_marks.add(_nid)
 
         # Cross-domain cascade: force traffic signals in attack_state
         if _attack_state.get("traffic_all_green"):

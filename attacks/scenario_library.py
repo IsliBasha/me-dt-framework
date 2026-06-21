@@ -6,10 +6,21 @@ output naturally from the manipulated model.
 """
 
 import random
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 
 import config
+
+# City-map visible node sets (must match city_map.js WATER/POWER/TRAFFIC_NODES)
+_VISIBLE_POWER_INTS = [0, 4, 8, 12, 18, 32]
+_ALL_WATER_NODES    = ['10','15','20','35','40','50','115','117']
+_ALL_POWER_NODES    = ['0','4','8','12','18','32']
+_ALL_TRAFFIC_NODES  = ['SYN-T01','SYN-T02','SYN-T03','SYN-T04','SYN-T05','SYN-T06']
+_ALL_WATER_SET      = set(_ALL_WATER_NODES)
+
+
+def _nearest_visible_power(bus_id: int) -> str:
+    return str(min(_VISIBLE_POWER_INTS, key=lambda x: abs(x - bus_id)))
 
 
 # ---------------------------------------------------------------------------
@@ -227,6 +238,9 @@ def _apply_actuator_hijack(tick: int, wn):
 
 def _apply_low_slow_recon(tick: int, wn, net):
     """Sub-threshold perturbations designed to stay below CUSUM h=5 for 10+ ticks."""
+    affected_water: List[str] = []
+    affected_power: List[int] = []
+
     if wn is not None:
         targets = random.sample(list(wn.junction_name_list), min(5, len(wn.junction_name_list)))
         for nid in targets:
@@ -236,6 +250,7 @@ def _apply_low_slow_recon(tick: int, wn, net):
                     for ts in node.demand_timeseries_list:
                         original = ts.base_value
                         ts.base_value = max(0.0, original + np.random.normal(0, 0.5))
+                affected_water.append(nid)
             except Exception:
                 pass
 
@@ -248,3 +263,70 @@ def _apply_low_slow_recon(tick: int, wn, net):
                 net.load.at[idx, "p_mw"] = max(0.0, original + np.random.normal(0, 0.02))
             except Exception:
                 pass
+        affected_power = [int(b) for b in bus_ids]
+
+    # Store visible-node-mapped affected list so get_affected_nodes() can report SUSPECT nodes
+    if "low_and_slow_recon" in _active:
+        visible_water = [n for n in affected_water if n in _ALL_WATER_SET]
+        visible_power = list({_nearest_visible_power(b) for b in affected_power})
+        last = (visible_water + visible_power) or ['15', '40', '4', '12']
+        _active["low_and_slow_recon"]["last_affected"] = last
+
+
+# ---------------------------------------------------------------------------
+# Node feedback mapping — city-map node IDs + status for each active attack
+# ---------------------------------------------------------------------------
+
+def get_affected_nodes(name: str, tick: int) -> Tuple[List[str], str]:
+    """
+    Return (city_map_node_ids, status) for the named attack at the given tick.
+    Status is 'UNDER_ATTACK' or 'SUSPECT'.  Returns ([], 'UNDER_ATTACK') when inactive.
+    """
+    if not is_active(name, tick):
+        return [], "UNDER_ATTACK"
+
+    entry     = _active.get(name, {})
+    start     = entry.get("start_tick", tick)
+    offset    = tick - start
+
+    if name == "false_data_injection":
+        return ['10', '15', '20'], "UNDER_ATTACK"
+
+    if name == "water_hammer":
+        return ['10', '15', '20', '35', '40', '50'], "UNDER_ATTACK"
+
+    if name == "load_redistribution":
+        # Line 5 bridges buses 5 and 6 in case33bw; map each to nearest visible power node
+        nodes = list({_nearest_visible_power(5), _nearest_visible_power(6)})
+        return nodes, "UNDER_ATTACK"
+
+    if name == "false_data_injection_power":
+        # Targets buses 2, 5, 10 — map each to nearest visible power node
+        nodes = list({_nearest_visible_power(b) for b in [2, 5, 10]})
+        return nodes, "UNDER_ATTACK"
+
+    if name == "scada_replay":
+        # Stale snapshot replayed across all power lines/transformers
+        return list(_ALL_POWER_NODES), "UNDER_ATTACK"
+
+    if name == "cross_domain_cascade":
+        if offset < 3:
+            # Phase 1: traffic signals forced GREEN
+            return list(_ALL_TRAFFIC_NODES), "UNDER_ATTACK"
+        else:
+            # Phase 2: power buses 10-15 overloaded 40%
+            nodes = list({_nearest_visible_power(b) for b in range(10, 16)})
+            return nodes, "UNDER_ATTACK"
+
+    if name == "actuator_hijack":
+        # Reservoir chlorine injection — affects entire water distribution
+        return list(_ALL_WATER_NODES), "UNDER_ATTACK"
+
+    if name == "low_and_slow_recon":
+        last = entry.get("last_affected", ['15', '40', '4', '12'])
+        return list(last), "SUSPECT"
+
+    if name == "denial_of_service_ot":
+        return list(_ALL_WATER_NODES + _ALL_POWER_NODES + _ALL_TRAFFIC_NODES), "UNDER_ATTACK"
+
+    return [], "UNDER_ATTACK"
