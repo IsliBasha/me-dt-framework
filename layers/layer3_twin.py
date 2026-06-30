@@ -134,7 +134,8 @@ class DigitalTwin:
         for nid, nd in water_nodes.items():
             if not nid.startswith("pump_"):
                 continue
-            curr = str(nd.get("status", ""))
+            # value is 1.0=Open, 0.0=Closed (set in Layer 1)
+            curr = nd.get("value", -1)
             prev = self._prev_pump_status.get(nid, curr)
             if curr != prev:
                 pump_toggles.append(nid)

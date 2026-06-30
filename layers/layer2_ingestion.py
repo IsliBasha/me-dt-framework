@@ -108,8 +108,10 @@ def process_batch(
         for node_id, raw in nodes.items():
             if node_id.startswith("__"):
                 continue
-            # Internal pump status nodes — skip numeric processing
+            # Pump status nodes — pass through so Layer 3 W3 can track toggles
             if raw.get("pump"):
+                reading = _normalize_node(node_id, subsystem, raw, tick)
+                clean.append(reading)
                 continue
 
             # DoS drop simulation

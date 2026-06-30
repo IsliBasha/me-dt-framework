@@ -3,6 +3,7 @@ Layer 1 — Physical Infrastructure
 Provides: water (WNTR/Net3), power (pandapower/case33bw), traffic (synthetic)
 """
 
+import copy
 import hashlib
 import os
 import urllib.request
@@ -82,7 +83,11 @@ def run_water_tick(wn, attack_state: Dict) -> Dict:
     ts_iso = _iso_now()
 
     try:
-        sim = wntr.sim.WNTRSimulator(wn)
+        # Deep-copy wn so each tick gets a fresh hydraulic time state.
+        # WNTRSimulator exhausts duration=0 after one call; reusing the same
+        # object returns an empty result frame from tick 1 onwards.
+        wn_snap = copy.deepcopy(wn)
+        sim = wntr.sim.WNTRSimulator(wn_snap)
         results = sim.run_sim()
     except Exception as e:
         print(f"[Layer1] WNTR sim error: {e}")
@@ -140,17 +145,22 @@ def run_water_tick(wn, attack_state: Dict) -> Dict:
             "integrity_hash": _integrity_hash(node_id, p_val, ts_ms),
         }
 
-    # Pump telemetry
+    # Pump telemetry — value 1.0=Open, 0.0=Closed so W3 can detect toggles
     for pump_id in wn.pump_name_list:
         try:
             pump = wn.get_link(pump_id)
-            status = getattr(pump, "initial_status", "UNKNOWN")
+            raw_status = getattr(pump, "initial_status", None)
+            is_open = raw_status == wntr.network.LinkStatus.Open
+            status_val = 1.0 if is_open else 0.0
             telemetry[f"pump_{pump_id}"] = {
-                "status":        str(status),
+                "value":         status_val,
+                "unit":          "",
+                "status":        str(raw_status),
                 "subsystem":     "water",
                 "pump":          True,
                 "timestamp_ms":  ts_ms,
                 "timestamp_iso": ts_iso,
+                "integrity_hash": _integrity_hash(f"pump_{pump_id}", status_val, ts_ms),
             }
         except Exception:
             pass
