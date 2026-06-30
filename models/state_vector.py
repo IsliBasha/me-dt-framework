@@ -16,6 +16,7 @@ class NodeReading:
     source: str             # SIMULATED | SYNTHETIC
     integrity_hash: str
     status: str = "NORMAL"  # NORMAL | SUSPECT | QUARANTINED | UNDER_ATTACK
+    signal_phase: Optional[str] = None
 
 
 @dataclass

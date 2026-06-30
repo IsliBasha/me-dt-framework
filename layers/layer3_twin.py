@@ -46,7 +46,7 @@ class DigitalTwin:
         # quarantine log
         self.quarantine_log: List[Dict] = []
         # previous pump states for cycling detection
-        self._prev_pump_status: Dict[str, str] = {}
+        self._prev_pump_status: Dict[str, float] = {}
         # previous vm_pu for cascade detection
         self._prev_vm: Dict[str, float] = {}
         # SIGNAL_ANOMALY active flag for cross-domain rule
@@ -90,6 +90,7 @@ class DigitalTwin:
                 "protocol":     reading.protocol,
                 "status":       status,
                 "timestamp_iso": reading.timestamp_iso,
+                "signal_phase": reading.signal_phase,
             }
             self._history_for(nid).append((tick, reading.value))
 
@@ -135,7 +136,9 @@ class DigitalTwin:
             if not nid.startswith("pump_"):
                 continue
             # value is 1.0=Open, 0.0=Closed (set in Layer 1)
-            curr = nd.get("value", -1)
+            curr = nd.get("value")
+            if curr is None:
+                continue
             prev = self._prev_pump_status.get(nid, curr)
             if curr != prev:
                 pump_toggles.append(nid)
@@ -265,8 +268,7 @@ class DigitalTwin:
         )
         zero_flow = [
             nid for nid, nd in traffic_nodes.items()
-            if isinstance(nd.get("value") or nd.get("vehicle_flow"), (int, float))
-            and (nd.get("value") or nd.get("vehicle_flow") or 0) == 0
+            if isinstance(nd.get("value"), (int, float)) and nd.get("value") == 0
         ]
 
         signal_anomaly_active = False

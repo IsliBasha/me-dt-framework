@@ -78,6 +78,8 @@ def process_tick(clean_readings, tick: int) -> List[CUSUMAlert]:
     for reading in clean_readings:
         if reading.subsystem == "traffic":
             continue  # exclude synthetic traffic from CUSUM
+        if reading.metric == "pump_status":
+            continue  # binary 0/1 collapses sigma to 1e-6 → alert storm
         alert = update(reading.node_id, reading.value, tick)
         if alert:
             alerts.append(alert)

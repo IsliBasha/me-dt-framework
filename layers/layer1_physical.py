@@ -146,9 +146,9 @@ def run_water_tick(wn, attack_state: Dict) -> Dict:
         }
 
     # Pump telemetry — value 1.0=Open, 0.0=Closed so W3 can detect toggles
-    for pump_id in wn.pump_name_list:
+    for pump_id in wn_snap.pump_name_list:
         try:
-            pump = wn.get_link(pump_id)
+            pump = wn_snap.get_link(pump_id)
             raw_status = getattr(pump, "initial_status", None)
             is_open = raw_status == wntr.network.LinkStatus.Open
             status_val = 1.0 if is_open else 0.0
@@ -162,8 +162,8 @@ def run_water_tick(wn, attack_state: Dict) -> Dict:
                 "timestamp_iso": ts_iso,
                 "integrity_hash": _integrity_hash(f"pump_{pump_id}", status_val, ts_ms),
             }
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[Layer1] pump {pump_id} telemetry error: {e}")
 
     return telemetry
 

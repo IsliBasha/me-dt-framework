@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from typing import Dict, List, Tuple, Any, Optional
 
 from models.state_vector import NodeReading, AnomalyEvent
+import random
 
 ROLLING_WINDOW = 20
 
@@ -21,6 +22,11 @@ _PROTOCOL_MAP = {
 
 # node_id -> deque of recent values
 _rolling_history: Dict[str, deque] = defaultdict(lambda: deque(maxlen=ROLLING_WINDOW))
+
+
+def reset():
+    """Reset rolling history between simulation runs."""
+    _rolling_history.clear()
 
 
 def _iso_now() -> str:
@@ -65,7 +71,7 @@ def _normalize_node(
     value   = primary if primary is not None else 0.0
     unit    = raw.get("unit", "")
 
-    metric = "pressure" if subsystem == "water" else (
+    metric = ("pump_status" if raw.get("pump") else "pressure") if subsystem == "water" else (
         "vm_pu" if subsystem == "power" else "vehicle_flow"
     )
 
@@ -84,6 +90,7 @@ def _normalize_node(
         source=source,
         integrity_hash=raw.get("integrity_hash", ""),
         status=raw.get("status", "NORMAL"),
+        signal_phase=raw.get("signal_phase") if subsystem == "traffic" else None,
     )
 
 
@@ -108,15 +115,31 @@ def process_batch(
         for node_id, raw in nodes.items():
             if node_id.startswith("__"):
                 continue
-            # Pump status nodes — pass through so Layer 3 W3 can track toggles
+            # Pump status nodes — DoS and integrity checks apply too
             if raw.get("pump"):
+                if dos_active and subsystem == "water":
+                    if random.random() < 0.80:
+                        anomalies.append(AnomalyEvent(
+                            node_id=node_id,
+                            subsystem=subsystem,
+                            event_type="MISSING",
+                            value=None,
+                            rolling_mean=None,
+                            rolling_std=None,
+                            tick=tick,
+                            timestamp_iso=_iso_now(),
+                        ))
+                        continue
                 reading = _normalize_node(node_id, subsystem, raw, tick)
+                if reading.integrity_hash:
+                    valid = _verify_hash(node_id, reading.value, reading.timestamp_ms, reading.integrity_hash)
+                    if not valid:
+                        reading.confidence = 0.0
                 clean.append(reading)
                 continue
 
             # DoS drop simulation
             if dos_active and subsystem == "water":
-                import random
                 if random.random() < 0.80:
                     anomalies.append(AnomalyEvent(
                         node_id=node_id,

@@ -39,7 +39,7 @@ def _build_feature_vector(clean_readings: List[NodeReading]) -> Optional[np.ndar
     """Concatenate numeric values from water + power nodes only."""
     feats = []
     for r in clean_readings:
-        if r.subsystem in ("water", "power") and isinstance(r.value, (int, float)):
+        if r.subsystem in ("water", "power") and r.metric != "pump_status" and isinstance(r.value, (int, float)):
             feats.append(float(r.value))
     if not feats:
         return None

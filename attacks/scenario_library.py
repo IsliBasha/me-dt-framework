@@ -29,6 +29,8 @@ def _nearest_visible_power(bus_id: int) -> str:
 
 _active: Dict[str, Dict] = {}          # scenario_name -> {start_tick, ...}
 _scada_snapshot: Optional[Dict] = None # for scada_replay
+_water_hammer_orig: Dict[str, Any] = {}  # pump_id -> original LinkStatus before attack
+_water_hammer_cleaned: bool = False      # True after cleanup runs on expiry
 
 
 def is_active(name: str, tick: int) -> bool:
@@ -46,11 +48,15 @@ def get_active_attacks(tick: int) -> Dict[str, bool]:
 
 def inject(name: str, tick: int, delay: int = 0, duration: Optional[int] = None):
     """Schedule an attack to start at tick + delay."""
+    global _water_hammer_cleaned
     start = tick + delay
     _active[name] = {
         "start_tick": start,
         "duration":   duration or config.ATTACK_DURATION_TICKS,
     }
+    if name == "water_hammer":
+        _water_hammer_orig.clear()
+        _water_hammer_cleaned = False
     print(f"[Attacks] Scheduled '{name}' to start at tick {start}")
 
 
@@ -59,12 +65,31 @@ def clear_attack(name: str):
 
 
 def reset_all():
+    global _water_hammer_cleaned
     _active.clear()
+    _water_hammer_orig.clear()
+    _water_hammer_cleaned = False
 
 
 # ---------------------------------------------------------------------------
 # Attack application — called every tick by main simulation loop
 # ---------------------------------------------------------------------------
+
+def _restore_water_hammer(wn):
+    """Restore pump statuses saved before the water_hammer attack started."""
+    global _water_hammer_cleaned
+    if wn is None or _water_hammer_cleaned or not _water_hammer_orig:
+        return
+    import wntr
+    for pump_id, orig_status in _water_hammer_orig.items():
+        try:
+            pump = wn.get_link(pump_id)
+            if pump is not None:
+                pump.initial_status = orig_status
+        except Exception:
+            pass
+    _water_hammer_cleaned = True
+
 
 def apply_attacks(tick: int, wn, net, attack_state: Dict) -> Dict[str, bool]:
     """
@@ -76,6 +101,8 @@ def apply_attacks(tick: int, wn, net, attack_state: Dict) -> Dict[str, bool]:
     for name in list(_active.keys()):
         if not is_active(name, tick):
             result[name] = False
+            if name == "water_hammer":
+                _restore_water_hammer(wn)
             continue
         result[name] = True
 
@@ -135,6 +162,8 @@ def _apply_water_hammer(tick: int, wn):
             pump = wn.get_link(pump_id)
             if pump is None:
                 continue
+            if pump_id not in _water_hammer_orig:
+                _water_hammer_orig[pump_id] = pump.initial_status
             if tick % 2 == 0:
                 pump.initial_status = wntr.network.LinkStatus.Open
             else:

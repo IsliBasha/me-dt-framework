@@ -19,6 +19,7 @@ from fastapi.staticfiles import StaticFiles
 import config
 from layers.layer1_physical import init_water_network, init_power_network, run_tick
 from layers.layer2_ingestion import process_batch
+import layers.layer2_ingestion as layer2_ingestion
 from layers.layer3_twin import DigitalTwin
 from layers.layer4_mythos import (
     run_mode_a, run_mode_b, run_mode_c,
@@ -184,6 +185,7 @@ async def reset_sim():
     scenario_library.reset_all()
     cusum_detector.reset_all()
     isolation_forest.reset()
+    layer2_ingestion.reset()
     metrics.reset()
     reset_transcripts()
     return {"status": "reset"}
@@ -205,7 +207,7 @@ async def approve_action(request: Request):
     approved_by = body.get("approved_by", "operator")
     try:
         action = _approval_queue.approve(action_id, approved_by=approved_by)
-        _twin.quarantine_node(action.node_id)
+        _twin.quarantine_node(action.node_id, wn=_wn, net=_net)
         logger.log_event("APPROVAL", {"action_id": action_id, "approved_by": approved_by, "node_id": action.node_id})
         return {"status": "approved", "action": action.to_dict()}
     except KeyError:
